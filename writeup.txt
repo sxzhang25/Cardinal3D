@@ -1,0 +1,15 @@
+Members: Jiaju Ma (jiajuma), Sharon Zhang (szhang25)
+Contributions:
+  Person A: 
+    - EdgeFlip
+    - EdgeSplit
+    - Triangulation
+    - Linear Subdivision
+    - CatmullClark Subdivision
+    - Advanced: LoopSubdivision
+  Person B:
+    - EdgeCollapse
+    - FaceBevel
+    - Simplification
+    - Create 3D model
+    - Advanced: EraseVertex, EraseEdge
