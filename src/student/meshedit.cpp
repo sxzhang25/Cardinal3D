@@ -77,7 +77,53 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_face(Halfedge_Me
 std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::EdgeRef e) {
 
     (void)e;
-    return std::nullopt;
+    // Iterate half edge face and find the vertex in the middle of the edge path.
+    HalfedgeRef curr_e_slow = e->halfedge();
+    HalfedgeRef curr_e_fast = e->halfedge();
+
+    // While the faster half edge reference has not completed one traversal around
+    // the entire face, keep iterating.
+    do {
+        curr_e_slow = curr_e_slow->next();
+        curr_e_fast = curr_e_fast->next()->next();
+    } while (curr_e_fast->edge() != e || curr_e_fast->next()->edge() != e);
+    curr_e_slow = curr_e_slow->next();
+
+    // Repeat for other face.
+    HalfedgeRef curr_e_slow_twin = e->halfedge()->twin();
+    HalfedgeRef curr_e_fast_twin = e->halfedge()->twin();
+    do {
+        curr_e_slow_twin = curr_e_slow_twin->next();
+        curr_e_fast_twin = curr_e_fast_twin->next()->next();
+    } while (curr_e_fast_twin->edge() != e || curr_e_fast_twin->next()->edge() != e);
+    curr_e_slow_twin = curr_e_slow_twin->next();
+
+    // Add the flipped edge. The half-edge we want to return should point from
+    // curr_e_slow --> curr_e_slow_twin.
+    // Edge new_e = Edge(e->id());
+    HalfedgeRef new_he = new_halfedge();
+    HalfedgeRef new_he_twin = new_halfedge();
+    EdgeRef new_e = new_edge();
+    new_e->_halfedge = new_he;
+
+    new_he->_next = curr_e_slow_twin;
+    new_he->_twin = new_he_twin;
+    new_he->_vertex = curr_e_slow->vertex();
+    new_he->_edge = new_e;
+    new_he->_face = curr_e_slow_twin->face();
+
+    new_he_twin->_next = curr_e_slow;
+    new_he_twin->_twin = new_he;
+    new_he_twin->_vertex = curr_e_slow_twin->vertex();
+    new_he_twin->_edge = new_e;
+    new_he_twin->_face = curr_e_slow->face();
+
+    // Remove the original edge and add in the new one.
+    erase_edge(e);
+    validate(); // DEBUG
+
+    // Return a pointer to the new flipped edge.
+    return new_e;
 }
 
 /*
