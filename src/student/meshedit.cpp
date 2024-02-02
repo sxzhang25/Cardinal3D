@@ -215,6 +215,8 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh::EdgeRef e) {
 
     // (void)e;
+    // NOTE: Getting face/vertex halfedge don't point to face/vertex errors, but 
+    // print statements suggest otherwise.
     // Create three new edges and their halfedges, a new vertex, and two new faces.
     // We pretend that e->halfedge points "north".
     EdgeRef west_e = new_edge();
