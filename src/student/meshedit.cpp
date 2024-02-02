@@ -214,7 +214,7 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh::EdgeRef e) {
 
-    (void)e;
+    // (void)e;
     // Create three new edges and their halfedges, a new vertex, and two new faces.
     // We pretend that e->halfedge points "north".
     EdgeRef west_e = new_edge();
@@ -229,40 +229,48 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh:
     VertexRef v = new_vertex();
     FaceRef bl_f = new_face();
     FaceRef br_f = new_face();
+    VertexRef north_v = e->halfedge()->twin()->vertex();
+    VertexRef west_v = e->halfedge()->next()->next()->vertex();
+    VertexRef south_v = e->halfedge()->vertex();
+    VertexRef east_v = e->halfedge()->twin()->next()->next()->vertex();
+    HalfedgeRef ul_he = e->halfedge()->next();
+    HalfedgeRef ll_he = e->halfedge()->next()->next();
+    HalfedgeRef lr_he = e->halfedge()->twin()->next();
+    HalfedgeRef ur_he = e->halfedge()->twin()->next()->next();
 
     // Reassign the west, south, and east edges and halfedges.
-    west_he->_next = e->halfedge()->next()->next();
+    west_he->_next = ll_he;
     west_he->_twin = west_he_twin;
     west_he->_vertex = v;
     west_he->_edge = west_e;
     west_he->_face = bl_f;
     west_he_twin->_next = e->halfedge();
     west_he_twin->_twin = west_he;
-    west_he_twin->_vertex = e->halfedge()->next()->next()->vertex();
+    west_he_twin->_vertex = west_v;
     west_he_twin->_edge = west_e;
     west_he_twin->_face = e->halfedge()->face();
     west_e->_halfedge = west_he;
 
-    south_he->_next = e->halfedge()->twin()->next();
+    south_he->_next = lr_he;
     south_he->_twin = south_he_twin;
     south_he->_vertex = v;
     south_he->_edge = south_e;
     south_he->_face = br_f;
     south_he_twin->_next = west_he;
     south_he_twin->_twin = south_he;
-    south_he_twin->_vertex = e->halfedge()->twin()->next()->vertex();
+    south_he_twin->_vertex = south_v;
     south_he_twin->_edge = south_e;
     south_he_twin->_face = bl_f;
     south_e->_halfedge = south_he;
 
-    east_he->_next = e->halfedge()->twin()->next()->next();
+    east_he->_next = ur_he;
     east_he->_twin = east_he_twin;
     east_he->_vertex = v;
     east_he->_edge = east_e;
     east_he->_face = e->halfedge()->twin()->face();
     east_he_twin->_next = south_he;
     east_he_twin->_twin = east_he;
-    east_he_twin->_vertex = e->halfedge()->twin()->next()->next()->vertex();
+    east_he_twin->_vertex = east_v;
     east_he_twin->_edge = east_e;
     east_he_twin->_face = br_f;
     east_e->_halfedge = east_he;
@@ -277,9 +285,9 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh:
     v->_halfedge = e->halfedge();
 
     // Update boundary halfedge next pointers.
-    e->halfedge()->next()->next()->_next = south_he_twin;
-    e->halfedge()->next()->_next = west_he_twin;
-    e->halfedge()->twin()->next()->_next = east_he_twin;
+    ll_he->_next = south_he_twin;
+    ul_he->_next = west_he_twin;
+    lr_he->_next = east_he_twin;
 
     // We will use the original edge and halfedges that we had for the north edge and halfedges.
     // We only need to udpate the twin halfedge because e->halfedge points towards
@@ -328,15 +336,15 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh:
 
     // VERTEX CHECKER.
     VertexRef vref = v;
-    std::cout << "\ncenter v " + std::to_string(v->id()) + " -> " + std::to_string(v->halfedge()->vertex()->id()) + "\n";
-    vref = e->halfedge()->twin()->vertex();
-    std::cout << "north v " + std::to_string(v->id()) + " -> " + std::to_string(v->halfedge()->vertex()->id()) + "\n";
-    vref = west_he_twin->vertex();
-    std::cout << "west v " + std::to_string(v->id()) + " -> " + std::to_string(v->halfedge()->vertex()->id()) + "\n";
-    vref = south_he_twin->vertex();
-    std::cout << "south v " + std::to_string(v->id()) + " -> " + std::to_string(v->halfedge()->vertex()->id()) + "\n";
-    vref = east_he_twin->vertex();
-    std::cout << "east v " + std::to_string(v->id()) + " -> " + std::to_string(v->halfedge()->vertex()->id()) + "\n";
+    std::cout << "\ncenter v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
+    vref = north_v;
+    std::cout << "north v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
+    vref = west_v;
+    std::cout << "west v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
+    vref = south_v;
+    std::cout << "south v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
+    vref = east_v;
+    std::cout << "east v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
 
     // Return a pointer to the vertex.
     validate();
