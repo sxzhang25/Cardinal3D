@@ -537,7 +537,89 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
 */
 void Halfedge_Mesh::triangulate() {
 
-    // For each face...
+    // Iterate and store pointers to all original mesh faces.
+    std::vector<FaceRef> og_faces;
+    FaceRef curr_face = faces_begin();
+    do {
+        std::cout << "face: " + std::to_string(curr_face->id()) + "\n";
+        og_faces.push_back(curr_face);
+        curr_face++;
+    } while (curr_face != faces_end());
+
+    // For each face, choose a vertex u. Iterate through all other vertices v around
+    // the face and add an edge u -> v if there doesn't already exist one.
+    for (int f = 0; f < (int)og_faces.size(); f++) {
+        curr_face = og_faces[f];
+        // Store all half edges and vertices around this face.
+        std::vector<HalfedgeRef> face_hes;
+        std::vector<VertexRef> vs;
+        HalfedgeRef he = curr_face->halfedge();
+        do {
+            face_hes.push_back(he);
+            vs.push_back(he->vertex());
+            he = he->next();
+        } while (he != curr_face->halfedge());
+        if ((int)vs.size() <= 3) continue; // Don't need to triangulate a triangle.
+        VertexRef base_v = vs[0]; // This is the vertex out of which all new edges should come.
+
+        // Create all new faces, edges and halfedges.
+        std::vector<FaceRef> new_faces;
+        std::vector<EdgeRef> new_edges;
+        std::vector<HalfedgeRef> new_halfedges;
+        std::vector<HalfedgeRef> new_halfedge_twins;
+        for (int i = 0; i < (int)face_hes.size() - 3; i++) {
+            HalfedgeRef new_he = new_halfedge();
+            HalfedgeRef new_he_twin = new_halfedge();
+            EdgeRef new_e = new_edge();
+            FaceRef new_f = new_face();
+
+            // Attach all halfedges to edges/vertices, edges to halfedge, and faces to halfedges.
+            new_he->_twin = new_he_twin;
+            new_he->_vertex = base_v;
+            new_he->_edge = new_e;
+            new_he_twin->_twin = new_he;
+            new_he_twin->_vertex = vs[i + 2];
+            new_he_twin->_edge = new_e;
+            new_e->_halfedge = new_he;
+            new_f->_halfedge = new_he_twin;
+            
+            new_faces.push_back(new_f);
+            new_edges.push_back(new_e);
+            new_halfedges.push_back(new_he);
+            new_halfedge_twins.push_back(new_he_twin);
+        }
+
+        // Attach each new halfedge to its face.
+        for (int i = 0; i < (int)new_faces.size(); i++) {
+            new_halfedge_twins[i]->_face = new_faces[i];
+            if (i < (int)new_faces.size() - 1) {
+                new_halfedges[i]->_face = new_faces[i + 1];
+            } else {
+                new_halfedges[i]->_face = curr_face;
+            }
+        }
+
+        // Assign nexts to new halfedges.
+        for (int i = 0; i < (int)new_halfedges.size(); i++) {
+            new_halfedges[i]->_next = face_hes[i + 2];
+            if (i > 0) {
+                new_halfedge_twins[i]->_next = new_halfedges[i - 1];
+            } else {
+                new_halfedge_twins[i]->_next = face_hes[0];
+            }
+            face_hes[i + 1]->_next = new_halfedge_twins[i];
+        }
+        face_hes[face_hes.size() - 1]->_next = new_halfedges[new_halfedges.size() - 1];
+
+        // Reassign the halfedge of the original face.
+        curr_face->_halfedge = new_halfedges[new_halfedges.size() - 1];
+    }
+    validate();
+
+    // CHECK FACE HALFEDGE POINTERS.
+    for (FaceRef f = faces_begin(); f != faces_end(); f++) {
+        std::cout << "f " + std::to_string(f->id()) + " -> he " + std::to_string(f->halfedge()->id()) + " -> f " + std::to_string(f->halfedge()->face()->id()) + "\n";
+    }
 }
 
 /* Note on the quad subdivision process:
