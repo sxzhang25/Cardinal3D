@@ -536,7 +536,7 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
     Splits all non-triangular faces into triangles.
 */
 void Halfedge_Mesh::triangulate() {
-
+    // TODO: Check error "A face has a halfedge which does not point to that face!"
     // Iterate and store pointers to all original mesh faces.
     std::vector<FaceRef> og_faces;
     FaceRef curr_face = faces_begin();
