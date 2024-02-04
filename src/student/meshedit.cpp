@@ -2,6 +2,7 @@
 #include <queue>
 #include <set>
 #include <unordered_map>
+#include <iostream>
 
 #include "../geometry/halfedge.h"
 #include "debug.h"
@@ -59,6 +60,19 @@ Halfedge_Mesh::HalfedgeRef find_prev_h(Halfedge_Mesh::HalfedgeRef h) {
     return h_prev;
 }
 
+bool is_rest_on_boundary(Halfedge_Mesh::HalfedgeRef h) {
+    return h->next()->edge()->on_boundary() || h->next()->next()->edge()->on_boundary();
+}
+
+void collapse_non_triangle_face(Halfedge_Mesh::HalfedgeRef h, Halfedge_Mesh::VertexRef v) {
+    Halfedge_Mesh::HalfedgeRef h_1 = h->next();
+    Halfedge_Mesh::HalfedgeRef h_2 = find_prev_h(h);
+
+    h_2->next() = h_1;
+    h_1->vertex() = v;
+    h_1->face()->halfedge() = h_1;
+}
+
 /*
     This method should collapse the given edge and return an iterator to
     the new vertex created by the collapse.
@@ -105,7 +119,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
 
     // update the left side
     if (is_left_triangle) {
-        if (curr_h->next()->edge()->on_boundary() ||curr_h->next()->next()->edge()->on_boundary()) {
+        if (is_rest_on_boundary(curr_h)) {
             return e->halfedge()->vertex();
         }
 
@@ -133,13 +147,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
         erase(e_1);
 
     } else {
-        // if the left side is not a triangle
-        Halfedge_Mesh::HalfedgeRef h_1 = curr_h->next();
-        Halfedge_Mesh::HalfedgeRef h_2 = find_prev_h(curr_h);
-
-        h_2->next() = h_1;
-        h_1->vertex() = curr_v;
-        h_1->face()->halfedge() = h_1;
+        collapse_non_triangle_face(curr_h, curr_v);
     }
 
     // Since we are keeping the current vertex, we need to update the verticies of the edges that are connected to the top of the current edge
@@ -151,7 +159,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     }
 
     if (is_right_triangle) {
-        if(oppo_h->next()->edge()->on_boundary() ||oppo_h->next()->next()->edge()->on_boundary()) {
+        if(is_rest_on_boundary(oppo_h)) {
             return e->halfedge()->vertex();
         }
 
@@ -180,13 +188,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
         erase(e_2);
 
     } else {
-        // if the right side is not a triangle
-        Halfedge_Mesh::HalfedgeRef h_1 = oppo_h->next();
-        Halfedge_Mesh::HalfedgeRef h_2 = find_prev_h(oppo_h);
-
-        h_2->next() = h_1;
-        // h_1->vertex() = curr_v; // no need here (or we can just reset it again!!)
-        h_1->face()->halfedge() = h_1;
+        collapse_non_triangle_face(oppo_h, curr_v);
     }
 
     erase(input_h);
