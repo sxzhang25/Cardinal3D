@@ -56,8 +56,152 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::E
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Mesh::EdgeRef e) {
 
-    (void)e;
-    return std::nullopt;
+    // if edge is boundary, return its vertex
+    if (e->on_boundary()) {
+        return e->halfedge()->vertex();
+    }
+    
+    Halfedge_Mesh::HalfedgeRef curr_h = e->halfedge();
+    Halfedge_Mesh::HalfedgeRef oppo_h = curr_h->twin();
+    Halfedge_Mesh::HalfedgeRef input_h = e->halfedge();
+
+    Halfedge_Mesh::FaceRef curr_f = curr_h->face();
+    Halfedge_Mesh::FaceRef oppo_f = oppo_h->face();
+
+    // check if either side of the edge is a triangle
+    bool is_left_triangle = curr_f->degree() == 3;
+    bool is_right_triangle = oppo_f->degree() == 3;
+
+    // if either side is a triangle and has no adjacent faces on either side, return the input edge's vertex (the collapse results in a boundary vertex)
+    // if (is_left_triangle) {
+    //     if(curr_h->next()->edge()->on_boundary() || curr_h->next()->next()->edge()->on_boundary()) {
+    //         return e->halfedge()->vertex();
+    //     }
+    // }
+
+    // if (is_right_triangle) {
+    //     if(oppo_h->next()->edge()->on_boundary() || oppo_h->next()->next()->edge()->on_boundary()) {
+    //         return e->halfedge()->vertex();
+    //     }
+    // }
+
+    // set curr vertex to the center of the edge
+    Halfedge_Mesh::VertexRef curr_v = curr_h->vertex();
+    Halfedge_Mesh::VertexRef oppo_v = oppo_h->vertex();
+    curr_v->pos = e->center(); // we are keeping this vertex
+    
+    // update the vertex to point to the next next halfedge
+    curr_v->halfedge() = curr_h->twin()->next()->twin()->next();
+    oppo_v->halfedge() = oppo_h->twin()->next()->twin()->next();
+
+    // update the left side
+    if (is_left_triangle) {
+        if (curr_h->next()->edge()->on_boundary() ||curr_h->next()->next()->edge()->on_boundary()) {
+            return e->halfedge()->vertex();
+        }
+
+        // the left traingle will disppear after the collapse
+        Halfedge_Mesh::EdgeRef e_1 = curr_h->next()->edge();
+        Halfedge_Mesh::EdgeRef e_2 = curr_h->next()->next()->edge();
+
+        Halfedge_Mesh::HalfedgeRef h_1 = curr_h->next();
+        Halfedge_Mesh::HalfedgeRef h_2 = h_1->next();
+
+        Halfedge_Mesh::HalfedgeRef h_1_twin = h_1->twin();
+        Halfedge_Mesh::HalfedgeRef h_2_twin = h_2->twin();
+        // these twins will become twins of each other
+        h_1_twin->twin() = h_2_twin;
+        h_2_twin->twin() = h_1_twin;
+
+        h_1_twin->edge() = e_2;
+        e_2->halfedge() = h_2_twin;
+
+        curr_h = h_1_twin->next(); // can factor this out of the if statement
+
+        Halfedge_Mesh::VertexRef v_1 = h_2->vertex();
+        v_1->halfedge() = h_2_twin->next();
+
+        erase(h_1);
+        erase(h_2);
+        erase(e_1);
+
+    } else {
+        // if the left side is not a triangle
+        Halfedge_Mesh::HalfedgeRef h_1 = curr_h->next();
+        Halfedge_Mesh::HalfedgeRef h_2 = h_1->next();
+        while(h_2->next() != curr_h) {
+            h_2 = h_2->next();
+        }
+
+        h_2->next() = h_1;
+        h_1->vertex() = curr_v;
+        h_1->face()->halfedge() = h_1;
+
+        curr_h = h_1->twin()->next();
+    }
+
+    // Since we are keeping the current vertex, we need to update the verticies of the edges that are connected to the top of the current edge
+    Halfedge_Mesh::HalfedgeRef h_to_update = curr_h;
+    while(h_to_update != oppo_h) {
+        h_to_update->vertex() = curr_v;
+        h_to_update = h_to_update->twin()->next();
+    }
+
+    if (is_right_triangle) {
+        if(oppo_h->next()->edge()->on_boundary() ||oppo_h->next()->next()->edge()->on_boundary()) {
+            return e->halfedge()->vertex();
+        }
+
+        // the left traingle will disppear after the collapse
+        Halfedge_Mesh::EdgeRef e_1 = oppo_h->next()->edge();
+        Halfedge_Mesh::EdgeRef e_2 = oppo_h->next()->next()->edge();
+
+        Halfedge_Mesh::HalfedgeRef h_1 = oppo_h->next();
+        Halfedge_Mesh::HalfedgeRef h_2 = h_1->next();
+
+        Halfedge_Mesh::HalfedgeRef h_1_twin = h_1->twin();
+        Halfedge_Mesh::HalfedgeRef h_2_twin = h_2->twin();
+
+        // these twins will become twins of each other
+        h_1_twin->twin() = h_2_twin; // same
+        h_2_twin->twin() = h_1_twin; // same
+
+        h_2_twin->edge() = e_1;
+        e_1->halfedge() = h_1_twin;
+
+        Halfedge_Mesh::VertexRef v_1 = h_2->vertex();
+        v_1->halfedge() = h_2_twin->next(); // same
+
+        erase(h_1); // same
+        erase(h_2); // same
+        erase(e_2);
+
+    } else {
+        // if the right side is not a triangle
+        Halfedge_Mesh::HalfedgeRef h_1 = oppo_h->next();
+        Halfedge_Mesh::HalfedgeRef h_2 = h_1->next();
+        while(h_2->next() != oppo_h) {
+            h_2 = h_2->next();
+        }
+
+        h_2->next() = h_1;
+        // h_1->vertex() = curr_v; // no need here (or we can just reset it again!!)
+        h_1->face()->halfedge() = h_1;
+    }
+
+    erase(input_h);
+    erase(oppo_h);
+    erase(e);
+    erase(oppo_v);
+    if(is_left_triangle) {
+        erase(curr_f);
+    }
+
+    if(is_right_triangle) {
+        erase(oppo_f);
+    }
+
+    return curr_v;
 }
 
 /*
