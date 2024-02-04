@@ -733,10 +733,68 @@ void Halfedge_Mesh::catmullclark_subdivide_positions() {
     // rules. (These rules are outlined in the Developer Manual.)
 
     // Faces
+    for (FaceRef f = faces_begin(); f != faces_end(); f++) {
+        std::vector<Vec3> v_positions;
+        HalfedgeRef he = f->halfedge();
+        do {
+            v_positions.push_back(he->vertex()->pos);
+            he = he->next();
+        } while (he != f->halfedge());
+
+        Vec3 centroid = v_positions[0];
+        for (int i = 1; i < (int)v_positions.size(); i++) {
+            centroid += v_positions[i];
+        }
+        f->new_pos = centroid / (int)v_positions.size();
+    }
 
     // Edges
+    for (EdgeRef e = edges_begin(); e != edges_end(); e++) {
+        Vec3 new_edge_pos = Vec3(0, 0, 0);
+        new_edge_pos += e->halfedge()->face()->new_pos;
+        new_edge_pos += e->halfedge()->twin()->face()->new_pos;
+        new_edge_pos += e->halfedge()->vertex()->pos;
+        new_edge_pos += e->halfedge()->twin()->vertex()->pos;
+        e->new_pos = new_edge_pos / 4;
+    }
 
     // Vertices
+    for (VertexRef v = vertices_begin(); v != vertices_end(); v++) {
+        // Get all adjacent faces.
+        HalfedgeRef start_he = v->halfedge();
+        HalfedgeRef curr_he = start_he;
+        std::vector<Vec3> adj_faces_new_pos;
+        std::vector<Vec3> all_edges_midpoints;
+        do {
+            // Iterate around adjacent faces to hop to the next face via twin edges.
+            adj_faces_new_pos.push_back(curr_he->face()->new_pos);
+            Vec3 adj_edge_midpoint = (curr_he->vertex()->pos + curr_he->twin()->vertex()->pos) / 2;
+            std::cout << "v " + std::to_string(v->id()) + " f " + std::to_string(curr_he->face()->id()) + "\n";
+            all_edges_midpoints.push_back(adj_edge_midpoint);
+            do {
+                std::cout << "he " + std::to_string(curr_he->id()) + "\n";
+                curr_he = curr_he->next();
+            } while (curr_he->next() != start_he);
+            start_he = curr_he->twin();
+            curr_he = start_he;
+        } while (curr_he != v->halfedge());
+
+        Vec3 q = Vec3(0, 0, 0);
+        for (int i = 0; i < (int)adj_faces_new_pos.size(); i++) {
+            q += adj_faces_new_pos[i];
+        }
+        q /= (int)adj_faces_new_pos.size();
+
+        Vec3 r = Vec3(0, 0, 0);
+        for (int i = 0; i < (int)all_edges_midpoints.size(); i++) {
+            r += all_edges_midpoints[i];
+        }
+        r /= (int)all_edges_midpoints.size();
+
+        Vec3 s = v->pos;
+        int n = (int)adj_faces_new_pos.size();
+        v->new_pos = (q + 2 * r + (n - 3) * s) / n;
+    }
 }
 
 /*
