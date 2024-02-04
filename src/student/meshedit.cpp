@@ -50,6 +50,15 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::E
     return std::nullopt;
 }
 
+// helper functions
+Halfedge_Mesh::HalfedgeRef find_prev_h(Halfedge_Mesh::HalfedgeRef h) {
+    Halfedge_Mesh::HalfedgeRef h_prev = h;
+    while(h_prev->next() != h) {
+        h_prev = h_prev->next();
+    }
+    return h_prev;
+}
+
 /*
     This method should collapse the given edge and return an iterator to
     the new vertex created by the collapse.
@@ -116,8 +125,6 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
         h_1_twin->edge() = e_2;
         e_2->halfedge() = h_2_twin;
 
-        curr_h = h_1_twin->next(); // can factor this out of the if statement
-
         Halfedge_Mesh::VertexRef v_1 = h_2->vertex();
         v_1->halfedge() = h_2_twin->next();
 
@@ -128,19 +135,15 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     } else {
         // if the left side is not a triangle
         Halfedge_Mesh::HalfedgeRef h_1 = curr_h->next();
-        Halfedge_Mesh::HalfedgeRef h_2 = h_1->next();
-        while(h_2->next() != curr_h) {
-            h_2 = h_2->next();
-        }
+        Halfedge_Mesh::HalfedgeRef h_2 = find_prev_h(curr_h);
 
         h_2->next() = h_1;
         h_1->vertex() = curr_v;
         h_1->face()->halfedge() = h_1;
-
-        curr_h = h_1->twin()->next();
     }
 
     // Since we are keeping the current vertex, we need to update the verticies of the edges that are connected to the top of the current edge
+    curr_h = curr_h->next()->twin()->next();
     Halfedge_Mesh::HalfedgeRef h_to_update = curr_h;
     while(h_to_update != oppo_h) {
         h_to_update->vertex() = curr_v;
@@ -179,10 +182,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     } else {
         // if the right side is not a triangle
         Halfedge_Mesh::HalfedgeRef h_1 = oppo_h->next();
-        Halfedge_Mesh::HalfedgeRef h_2 = h_1->next();
-        while(h_2->next() != oppo_h) {
-            h_2 = h_2->next();
-        }
+        Halfedge_Mesh::HalfedgeRef h_2 = find_prev_h(oppo_h);
 
         h_2->next() = h_1;
         // h_1->vertex() = curr_v; // no need here (or we can just reset it again!!)
