@@ -536,7 +536,7 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
     Splits all non-triangular faces into triangles.
 */
 void Halfedge_Mesh::triangulate() {
-    // TODO: Check error "A face has a halfedge which does not point to that face!"
+    // TODO: Check error "A face has a halfedge which does not point to that face!"ome
     // Iterate and store pointers to all original mesh faces.
     std::vector<FaceRef> og_faces;
     FaceRef curr_face = faces_begin();
@@ -682,13 +682,36 @@ void Halfedge_Mesh::linear_subdivide_positions() {
 
     // For each vertex, assign Vertex::new_pos to
     // its original position, Vertex::pos.
+    for (VertexRef v = vertices_begin(); v != vertices_end(); v++) {
+        v->new_pos = v->pos;
+    }
 
     // For each edge, assign the midpoint of the two original
     // positions to Edge::new_pos.
+    for (EdgeRef e = edges_begin(); e != edges_end(); e++) {
+        VertexRef u = e->halfedge()->vertex();
+        VertexRef v = e->halfedge()->next()->vertex();
+        Vec3 midpoint = (u->pos + v->pos) / 2;
+        e->new_pos = midpoint;
+    }
 
     // For each face, assign the centroid (i.e., arithmetic mean)
     // of the original vertex positions to Face::new_pos. Note
     // that in general, NOT all faces will be triangles!
+    for (FaceRef f = faces_begin(); f != faces_end(); f++) {
+        std::vector<Vec3> v_positions;
+        HalfedgeRef he = f->halfedge();
+        do {
+            v_positions.push_back(he->vertex()->pos);
+            he = he->next();
+        } while (he != f->halfedge());
+
+        Vec3 centroid = v_positions[0];
+        for (int i = 1; i < (int)v_positions.size(); i++) {
+            centroid += v_positions[i];
+        }
+        f->new_pos = centroid / (int)v_positions.size();
+    }
 }
 
 /*
