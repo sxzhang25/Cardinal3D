@@ -77,7 +77,6 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_face(Halfedge_Me
 */
 std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::EdgeRef e) {
 
-    (void)e;
     // Iterate half edge face and find the vertex in the middle of the edge path.
     HalfedgeRef he1 = e->halfedge();
     HalfedgeRef he1_fast = e->halfedge();
@@ -492,20 +491,9 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
     Splits all non-triangular faces into triangles.
 */
 void Halfedge_Mesh::triangulate() {
-    // TODO: Check error "A face has a halfedge which does not point to that face!"ome
-    // Iterate and store pointers to all original mesh faces.
-    std::vector<FaceRef> og_faces;
-    FaceRef curr_face = faces_begin();
-    do {
-        std::cout << "face: " + std::to_string(curr_face->id()) + "\n";
-        og_faces.push_back(curr_face);
-        curr_face++;
-    } while (curr_face != faces_end());
-
     // For each face, choose a vertex u. Iterate through all other vertices v around
     // the face and add an edge u -> v if there doesn't already exist one.
-    for (int f = 0; f < (int)og_faces.size(); f++) {
-        curr_face = og_faces[f];
+    for (FaceRef curr_face = faces_begin(); curr_face != faces_end(); curr_face++) {
         // Store all half edges and vertices around this face.
         std::vector<HalfedgeRef> face_hes;
         std::vector<VertexRef> vs;
@@ -554,6 +542,20 @@ void Halfedge_Mesh::triangulate() {
                 new_halfedges[i]->_face = curr_face;
             }
         }
+        // Reassign the halfedge of the original face.
+        // face_hes[face_hes.size() - 1]->_face = curr_face;
+
+        // Reassign faces of original face halfedges.
+        for (int i = 0; i < (int)face_hes.size(); i++) {
+            if (i < 1) {
+                face_hes[i]->_face = new_faces[0];
+            } else if (i > (int)face_hes.size() - 3) {
+                face_hes[i]->_face = curr_face;
+            } else {
+                face_hes[i]->_face = new_faces[i - 1];
+            }
+        }
+        curr_face->_halfedge = face_hes[face_hes.size() - 1];
 
         // Assign nexts to new halfedges.
         for (int i = 0; i < (int)new_halfedges.size(); i++) {
@@ -565,16 +567,8 @@ void Halfedge_Mesh::triangulate() {
             }
             face_hes[i + 1]->_next = new_halfedge_twins[i];
         }
+        // Reassgn next of last old face halfedge.
         face_hes[face_hes.size() - 1]->_next = new_halfedges[new_halfedges.size() - 1];
-
-        // Reassign the halfedge of the original face.
-        curr_face->_halfedge = new_halfedges[new_halfedges.size() - 1];
-    }
-    validate();
-
-    // CHECK FACE HALFEDGE POINTERS.
-    for (FaceRef f = faces_begin(); f != faces_end(); f++) {
-        std::cout << "f " + std::to_string(f->id()) + " -> he " + std::to_string(f->halfedge()->id()) + " -> f " + std::to_string(f->halfedge()->face()->id()) + "\n";
     }
 }
 
