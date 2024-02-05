@@ -81,16 +81,12 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
     HalfedgeRef he1 = e->halfedge();
     HalfedgeRef he1_fast = e->halfedge();
 
-    std::cout << "Original edge + face info:\n";
     HalfedgeRef curr = e->halfedge();
     do {
-        std::cout << "he: " + std::to_string(curr->id()) + " v: " + std::to_string(curr->vertex()->id()) + " f: " + std::to_string(curr->face()->id()) + "\n";
         curr = curr->next();
     } while (curr->id() != e->halfedge()->id());
-    std::cout << "Original twin edge + face info:\n";
     curr = e->halfedge()->twin();
     do {
-        std::cout << "he: " + std::to_string(curr->id()) + " v: " + std::to_string(curr->vertex()->id()) + " f: " + std::to_string(curr->face()->id()) + "\n";
         curr = curr->next();
     } while (curr->id() != e->halfedge()->twin()->id());
 
@@ -105,8 +101,6 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
     new_he->_face = he1->face();
     new_he_twin->_face = he1->twin()->face();
 
-    std::cout << "New_e he: " + std::to_string(new_e->halfedge()->id()) + "\n";
-
     // While the faster half edge reference has not completed one traversal around
     // the entire face, keep iterating.
     do {
@@ -114,7 +108,6 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
         he1_fast = he1_fast->next()->next();
     } while (he1_fast->id() != e->halfedge()->id() && he1_fast->next()->id() != e->halfedge()->id());
     HalfedgeRef he2 = he1->next();
-    std::cout << "he2 id: " + std::to_string(he2->id()) + "\n";
 
     // Repeat for other face.
     HalfedgeRef he3 = e->halfedge()->twin();
@@ -124,7 +117,6 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
         he3_fast = he3_fast->next()->next();
     } while (he3_fast->id() != e->halfedge()->twin()->id() && he3_fast->next()->id() != e->halfedge()->twin()->id());
     HalfedgeRef he4 = he3->next();
-    std::cout << "he4 id: " + std::to_string(he4->id()) + "\n";
 
     // Also get the halfedges pointing to the edge we want to erase later.
     HalfedgeRef he5 = e->halfedge();
@@ -142,21 +134,17 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
     new_he->next() = he4;
     new_he->vertex() = he2->vertex();
     new_he->vertex()->_halfedge = new_he;
-    // he2->vertex()->_halfedge = new_he;
 
     he3->next() = new_he_twin;
     new_he_twin->next() = he2;
     new_he_twin->vertex() = he4->vertex();
     new_he_twin->vertex()->_halfedge = new_he_twin;
-    // he3->vertex()->_halfedge = new_he_twin;
 
     he5->next() = e->halfedge()->twin()->next();
     he6->next() = e->halfedge()->next();
     e->halfedge()->vertex()->_halfedge = he5->next();
     e->halfedge()->twin()->vertex()->_halfedge = he6->next();
-    
-    std::cout << "HERE c\n";
-    
+        
     // Unify halfedges->face and set face->halfedge.
     HalfedgeRef a = new_he->next();
     do {
@@ -172,38 +160,22 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
     } while (b->id() != new_he_twin->id());
     b->face()->_halfedge = new_he_twin;
 
-    std::cout << "New edge + face info:\n";
     curr = new_e->halfedge();
     do {
-        std::cout << "he: " + std::to_string(curr->id()) + " v: " + std::to_string(curr->vertex()->id()) + " (" + std::to_string(curr->vertex()->halfedge()->id()) + " -> " + std::to_string(curr->vertex()->halfedge()->vertex()->id()) + ") f: " + std::to_string(curr->face()->id()) + "\n";
         curr = curr->next();
     } while (curr->id() != new_e->halfedge()->id());
 
-    std::cout << "New twin edge + face info:\n";
     curr = new_e->halfedge()->twin();
-    std::cout << "he: " + std::to_string(curr->id()) + "\n";
-    std::cout << "v: " + std::to_string(curr->vertex()->id()) + "\n";
-    std::cout << "f: " + std::to_string(curr->face()->id()) + "\n";
     do {
-        std::cout << "he: " + std::to_string(curr->id()) + " v: " + std::to_string(curr->vertex()->id()) + " (" + std::to_string(curr->vertex()->halfedge()->id()) + " -> " + std::to_string(curr->vertex()->halfedge()->vertex()->id()) + ") f: " + std::to_string(curr->face()->id()) + "\n";
         curr = curr->next();
     } while (curr->id() != new_e->halfedge()->twin()->id());
 
-    std::cout << std::to_string(e->halfedge()->id()) + " points to " + std::to_string(e->halfedge()->next()->id()) + "\n";
-    std::cout << std::to_string(e->halfedge()->twin()->id()) + " points to " + std::to_string(e->halfedge()->twin()->next()->id()) + "\n";
-
     // Remove the original edge.
-    std::cout << "eraseing edge: " + std::to_string(e->id()) + "\n";
-    std::cout << "eraseing he: " + std::to_string(e->halfedge()->id()) + "\n";
-    std::cout << "eraseing he: " + std::to_string(e->halfedge()->twin()->id()) + "\n";
     erase(e);
     erase(e->halfedge());
     erase(e->halfedge()->twin());
-    validate(); // DEBUG
-    std::cout << "HERE e\n";
     // Return a pointer to the new flipped edge.
     return new_e;
-    // return std::nullopt;
 }
 
 /*
@@ -719,10 +691,8 @@ void Halfedge_Mesh::catmullclark_subdivide_positions() {
             // Iterate around adjacent faces to hop to the next face via twin edges.
             adj_faces_new_pos.push_back(curr_he->face()->new_pos);
             Vec3 adj_edge_midpoint = curr_he->edge()->center();
-            std::cout << "v " + std::to_string(v->id()) + " f " + std::to_string(curr_he->face()->id()) + "\n";
             all_edges_midpoints.push_back(adj_edge_midpoint);
             do {
-                std::cout << "he " + std::to_string(curr_he->id()) + "\n";
                 curr_he = curr_he->next();
             } while (curr_he->next() != start_he);
             start_he = curr_he->twin();
