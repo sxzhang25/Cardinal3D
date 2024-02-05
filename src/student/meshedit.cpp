@@ -214,144 +214,100 @@ std::optional<Halfedge_Mesh::EdgeRef> Halfedge_Mesh::flip_edge(Halfedge_Mesh::Ed
 */
 std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::split_edge(Halfedge_Mesh::EdgeRef e) {
 
-    // (void)e;
-    // NOTE: Getting face/vertex halfedge don't point to face/vertex errors, but 
-    // print statements suggest otherwise.
-    // Create three new edges and their halfedges, a new vertex, and two new faces.
-    // We pretend that e->halfedge points "north".
-    EdgeRef west_e = new_edge();
-    EdgeRef south_e = new_edge();
-    EdgeRef east_e = new_edge();
-    HalfedgeRef west_he = new_halfedge();
-    HalfedgeRef west_he_twin = new_halfedge();
-    HalfedgeRef south_he = new_halfedge();
-    HalfedgeRef south_he_twin = new_halfedge();
-    HalfedgeRef east_he = new_halfedge();
-    HalfedgeRef east_he_twin = new_halfedge();
-    VertexRef v = new_vertex();
-    FaceRef bl_f = new_face();
-    FaceRef br_f = new_face();
-    VertexRef north_v = e->halfedge()->twin()->vertex();
-    VertexRef west_v = e->halfedge()->next()->next()->vertex();
-    VertexRef south_v = e->halfedge()->vertex();
-    VertexRef east_v = e->halfedge()->twin()->next()->next()->vertex();
-    HalfedgeRef ul_he = e->halfedge()->next();
-    HalfedgeRef ll_he = e->halfedge()->next()->next();
-    HalfedgeRef lr_he = e->halfedge()->twin()->next();
-    HalfedgeRef ur_he = e->halfedge()->twin()->next()->next();
+    // Store references for old halfedges.
+    HalfedgeRef he_north = e->halfedge();
+    HalfedgeRef he_northwest = he_north->next();
+    HalfedgeRef he_southwest = he_northwest->next();
+    HalfedgeRef he_southeast = he_north->twin()->next();
+    HalfedgeRef he_northeast = he_southeast->next();
 
-    // Reassign the west, south, and east edges and halfedges.
-    west_he->_next = ll_he;
-    west_he->_twin = west_he_twin;
-    west_he->_vertex = v;
-    west_he->_edge = west_e;
-    west_he->_face = bl_f;
-    west_he_twin->_next = e->halfedge();
-    west_he_twin->_twin = west_he;
-    west_he_twin->_vertex = west_v;
-    west_he_twin->_edge = west_e;
-    west_he_twin->_face = e->halfedge()->face();
-    west_e->_halfedge = west_he;
+    // Create new vertex at center.
+    VertexRef new_v = new_vertex();
 
-    south_he->_next = lr_he;
-    south_he->_twin = south_he_twin;
-    south_he->_vertex = v;
-    south_he->_edge = south_e;
-    south_he->_face = br_f;
-    south_he_twin->_next = west_he;
-    south_he_twin->_twin = south_he;
-    south_he_twin->_vertex = south_v;
-    south_he_twin->_edge = south_e;
-    south_he_twin->_face = bl_f;
-    south_e->_halfedge = south_he;
+    // Create three new edges and their halfedges (we will reuse the original 
+    // edge being split and its halfedges for the remaining edge and halfedges).
+    EdgeRef e_east = new_edge();
+    EdgeRef e_south = new_edge();
+    EdgeRef e_west = new_edge();
+    HalfedgeRef he_east = new_halfedge();
+    HalfedgeRef he_east_twin = new_halfedge();
+    HalfedgeRef he_south = new_halfedge();
+    HalfedgeRef he_south_twin = new_halfedge();
+    HalfedgeRef he_west = new_halfedge();
+    HalfedgeRef he_west_twin = new_halfedge();
 
-    east_he->_next = ur_he;
-    east_he->_twin = east_he_twin;
-    east_he->_vertex = v;
-    east_he->_edge = east_e;
-    east_he->_face = e->halfedge()->twin()->face();
-    east_he_twin->_next = south_he;
-    east_he_twin->_twin = east_he;
-    east_he_twin->_vertex = east_v;
-    east_he_twin->_edge = east_e;
-    east_he_twin->_face = br_f;
-    east_e->_halfedge = east_he;
 
-    // Reassign the bottom-left and bottom-right faces. We can keep the same halfedge
-    // for the top-left and top-right faces.
-    bl_f->_halfedge = west_he;
-    br_f->_halfedge = south_he;
-    e->halfedge()->twin()->face()->_halfedge = east_he;
+    // Create two new faces (we will reuse the original two faces for the remaining
+    // two faces).
+    FaceRef f_southeast = new_face();
+    FaceRef f_southwest=  new_face();
 
-    // Reassign the new vertex.
-    v->_halfedge = e->halfedge();
+    // Attach halfedges for the new vertex.
+    new_v->_halfedge = he_north;
+    new_v->pos = e->center(); // New vertex goes at the center of the edge.
+    // Fix halfedge for old vertex.
+    he_north->vertex()->_halfedge = he_southeast;
 
-    // Update boundary halfedge next pointers.
-    ll_he->_next = south_he_twin;
-    ul_he->_next = west_he_twin;
-    lr_he->_next = east_he_twin;
+    // Attach halfedges for new and old faces.
+    f_southeast->_halfedge = he_southeast;
+    f_southwest->_halfedge = he_southwest;
+    he_north->face()->_halfedge = he_north;
+    he_north->twin()->face()->_halfedge = he_north->twin();
+    he_southeast->_face = f_southeast;
+    he_southwest->_face = f_southwest;
 
-    // We will use the original edge and halfedges that we had for the north edge and halfedges.
-    // We only need to udpate the twin halfedge because e->halfedge points towards
-    // unchanged regions.
-    e->halfedge()->_vertex = v;
-    e->halfedge()->twin()->_next = east_he;
+    // Attach halfedges to new edges.
+    e_east->_halfedge = he_east;
+    e_south->_halfedge = he_south;
+    e_west->_halfedge = he_west;
 
-    // HALF EDGE NEXT CHECKER.
-    HalfedgeRef curr = e->halfedge();
-    std::cout << "\nnorth he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "northwest he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "west he twin " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
+    // Assign new halfedge information.
+    he_north->_next = he_northwest;
+    he_north->_vertex = new_v;
+    he_north->twin()->_next = he_east;
 
-    curr = west_he;
-    std::cout << "\nwest he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "southwest he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "south he twin " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
+    he_northeast->_next = he_north->twin();
+    he_southeast->_next = he_east_twin;
+    he_southwest->_next = he_south_twin;
+    he_northwest->_next = he_west_twin;
 
-    curr = south_he;
-    std::cout << "\nsouth he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "southeast he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "east he twin " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
+    he_east->_next = he_northeast;
+    he_east->_twin = he_east_twin;
+    he_east->_vertex = new_v;
+    he_east->_edge = e_east;
+    he_east->_face = he_north->twin()->face();
 
-    curr = east_he;
-    std::cout << "\neast he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "northeast he " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
-    curr = curr->next();
-    std::cout << "north he twin " + std::to_string(curr->id()) + " -> he " + std::to_string(curr->next()->id()) + "\n";
+    he_east_twin->_next = he_south;
+    he_east_twin->_twin = he_east;
+    he_east_twin->_vertex = he_northeast->vertex();
+    he_east_twin->_edge = e_east;
+    he_east_twin->_face = f_southeast;
 
-    // FACE CHECKER.
-    FaceRef faceref = e->halfedge()->face();
-    std::cout << "\ntl face " + std::to_string(faceref->id()) + " -> " + std::to_string(faceref->halfedge()->face()->id()) + "\n";
-    faceref = east_he->face();
-    std::cout << "tr face " + std::to_string(faceref->id()) + " -> " + std::to_string(faceref->halfedge()->face()->id()) + "\n";
-    faceref = south_he->face();
-    std::cout << "lr face " + std::to_string(faceref->id()) + " -> " + std::to_string(faceref->halfedge()->face()->id()) + "\n";
-    faceref = west_he->face();
-    std::cout << "ll face " + std::to_string(faceref->id()) + " -> " + std::to_string(faceref->halfedge()->face()->id()) + "\n";
+    he_south->_next = he_southeast;
+    he_south->_twin = he_south_twin;
+    he_south->_vertex = new_v;
+    he_south->_edge = e_south;
+    he_south->_face = f_southeast;
 
-    // VERTEX CHECKER.
-    VertexRef vref = v;
-    std::cout << "\ncenter v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
-    vref = north_v;
-    std::cout << "north v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
-    vref = west_v;
-    std::cout << "west v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
-    vref = south_v;
-    std::cout << "south v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
-    vref = east_v;
-    std::cout << "east v " + std::to_string(vref->id()) + " -> " + std::to_string(vref->halfedge()->vertex()->id()) + "\n";
+    he_south_twin->_next = he_west;
+    he_south_twin->_twin = he_south;
+    he_south_twin->_vertex = he_southeast->vertex();
+    he_south_twin->_edge = e_south;
+    he_south_twin->_face = f_southwest;
 
-    // Return a pointer to the vertex.
-    validate();
-    return v;
-    // return std::nullopt;
+    he_west->_next = he_southwest;
+    he_west->_twin = he_west_twin;
+    he_west->_vertex = new_v;
+    he_west->_edge = e_west;
+    he_west->_face = f_southwest;
+
+    he_west_twin->_next = he_north;
+    he_west_twin->_twin = he_west;
+    he_west_twin->_vertex = he_southwest->vertex();
+    he_west_twin->_edge = e_west;
+    he_west_twin->_face = he_north->face();
+
+    return new_v;
 }
 
 /* Note on the beveling process:
@@ -689,10 +645,10 @@ void Halfedge_Mesh::linear_subdivide_positions() {
     // For each edge, assign the midpoint of the two original
     // positions to Edge::new_pos.
     for (EdgeRef e = edges_begin(); e != edges_end(); e++) {
-        VertexRef u = e->halfedge()->vertex();
-        VertexRef v = e->halfedge()->next()->vertex();
-        Vec3 midpoint = (u->pos + v->pos) / 2;
-        e->new_pos = midpoint;
+        // VertexRef u = e->halfedge()->vertex();
+        // VertexRef v = e->halfedge()->next()->vertex();
+        // Vec3 midpoint = (u->pos + v->pos) / 2;
+        e->new_pos = e->center();
     }
 
     // For each face, assign the centroid (i.e., arithmetic mean)
@@ -768,7 +724,7 @@ void Halfedge_Mesh::catmullclark_subdivide_positions() {
         do {
             // Iterate around adjacent faces to hop to the next face via twin edges.
             adj_faces_new_pos.push_back(curr_he->face()->new_pos);
-            Vec3 adj_edge_midpoint = (curr_he->vertex()->pos + curr_he->twin()->vertex()->pos) / 2;
+            Vec3 adj_edge_midpoint = curr_he->edge()->center();
             std::cout << "v " + std::to_string(v->id()) + " f " + std::to_string(curr_he->face()->id()) + "\n";
             all_edges_midpoints.push_back(adj_edge_midpoint);
             do {
