@@ -41,16 +41,6 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_vertex(Halfedge_Mesh:
     return std::nullopt;
 }
 
-/*
-    This method should erase the given edge and return an iterator to the
-    merged face.
- */
-std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::EdgeRef e) {
-
-    (void)e;
-    return std::nullopt;
-}
-
 // helper functions
 Halfedge_Mesh::HalfedgeRef find_prev_h(Halfedge_Mesh::HalfedgeRef h) {
     Halfedge_Mesh::HalfedgeRef h_prev = h;
@@ -58,6 +48,63 @@ Halfedge_Mesh::HalfedgeRef find_prev_h(Halfedge_Mesh::HalfedgeRef h) {
         h_prev = h_prev->next();
     }
     return h_prev;
+}
+
+/*
+    This method should erase the given edge and return an iterator to the
+    merged face.
+ */
+std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::EdgeRef e) {
+
+    if(e->on_boundary()) {
+        (void) e;
+        return std::nullopt;
+    }
+
+    Halfedge_Mesh::HalfedgeRef curr_h = e->halfedge();
+    Halfedge_Mesh::FaceRef curr_f = curr_h->face(); // we keeping curr_f
+    Halfedge_Mesh::HalfedgeRef curr_h_twin = curr_h->twin();
+    Halfedge_Mesh::FaceRef oppo_f = curr_h_twin->face();
+
+    Halfedge_Mesh::HalfedgeRef curr_h_prev = find_prev_h(curr_h);
+    Halfedge_Mesh::HalfedgeRef curr_h_twin_prev = find_prev_h(curr_h_twin);
+
+    Halfedge_Mesh::HalfedgeRef curr_h_next = curr_h->next();
+    Halfedge_Mesh::HalfedgeRef curr_h_twin_next = curr_h_twin->next();
+
+    if(curr_f == oppo_f) {
+        (void) e;
+        return std::nullopt;
+    }
+
+    Halfedge_Mesh::VertexRef curr_h_v = curr_h->vertex();
+    Halfedge_Mesh::VertexRef curr_h_twin_v = curr_h_twin->vertex();
+
+    // modify the halfedge of two vertices of deleted edge
+    curr_h_v->halfedge() = curr_h_twin->next();
+    curr_h_twin_v->halfedge() = curr_h->next();
+
+    // modify face0's halfedge to something not deleted.
+    curr_f->halfedge() = curr_h_twin->next();
+
+    // loop through the halfedges of the opposite face and assign them to the other face
+    Halfedge_Mesh::HalfedgeRef temp_h = curr_h_twin_next;
+    while(temp_h != curr_h_twin) {
+        temp_h->face() = curr_f;
+        temp_h = temp_h->next();
+    }
+
+    // point curr_h_twin->prev and assign it's next to curr_h->next
+    curr_h_twin_prev->next() = curr_h_next;
+
+    // point curr_h->prev and assign it's next to curr_h_twin->next
+    curr_h_prev->next() = curr_h_twin_next;
+
+    erase(e);
+    erase(oppo_f);
+    erase(curr_h);
+    erase(curr_h_twin);
+    return curr_f;
 }
 
 bool is_rest_on_boundary(Halfedge_Mesh::HalfedgeRef h) {
