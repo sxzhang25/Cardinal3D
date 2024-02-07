@@ -746,13 +746,31 @@ struct Edge_Record {
         : edge(e) {
 
         // Compute the combined quadric from the edge endpoints.
+        Halfedge_Mesh::VertexRef u = e->halfedge()->vertex();
+        Halfedge_Mesh::VertexRef v = e->halfedge()->twin()->vertex();
         // -> Build the 3x3 linear system whose solution minimizes the quadric error
         //    associated with these two endpoints.
+        Mat4 K_sum = vertex_quadrics[u] + vertex_quadrics[v];
+        Mat4 A(K_sum);
+        Vec3 b = -K_sum[3].xyz();
+        for(int i = 0; i < 3; ++i) {
+            A[3][i] = A[i][3] = 0.0f;
+        }
+        A[3][3] = 1.0f;
+
         // -> Use this system to solve for the optimal position, and store it in
         //    Edge_Record::optimal.
+        optimal = e->center(); // non invertible case
+
+        if (std::abs(A.det()) > 1e-8) {
+            optimal = A.inverse() * b;
+        }
+        
         // -> Also store the cost associated with collapsing this edge in
         //    Edge_Record::cost.
+        cost = dot(Vec4(optimal, 1.0f), (K_sum * Vec4(optimal, 1.0f)));
     }
+
     Halfedge_Mesh::EdgeRef edge;
     Vec3 optimal;
     float cost;
