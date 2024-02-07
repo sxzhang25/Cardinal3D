@@ -174,19 +174,6 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     bool is_left_triangle = curr_f->degree() == 3;
     bool is_right_triangle = oppo_f->degree() == 3;
 
-    // if either side is a triangle and has no adjacent faces on either side, return the input edge's vertex (the collapse results in a boundary vertex)
-    // if (is_left_triangle) {
-    //     if(curr_h->next()->edge()->on_boundary() || curr_h->next()->next()->edge()->on_boundary()) {
-    //         return e->halfedge()->vertex();
-    //     }
-    // }
-
-    // if (is_right_triangle) {
-    //     if(oppo_h->next()->edge()->on_boundary() || oppo_h->next()->next()->edge()->on_boundary()) {
-    //         return e->halfedge()->vertex();
-    //     }
-    // }
-
     // set curr vertex to the center of the edge
     Halfedge_Mesh::VertexRef curr_v = curr_h->vertex();
     Halfedge_Mesh::VertexRef oppo_v = oppo_h->vertex();
@@ -216,6 +203,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
         h_to_update = h_to_update->twin()->next();
     }
 
+    // update the right side
     if (is_right_triangle) {
         if(is_rest_on_boundary(oppo_h)) {
             return e->halfedge()->vertex();
@@ -231,6 +219,7 @@ std::optional<Halfedge_Mesh::VertexRef> Halfedge_Mesh::collapse_edge(Halfedge_Me
     erase(oppo_h);
     erase(e);
     erase(oppo_v);
+
     if(is_left_triangle) {
         erase(curr_f);
     }
@@ -376,7 +365,7 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::bevel_face(Halfedge_Mesh::F
         new_halfedges.push_back(new_halfedge());
     }
 
-    f->halfedge() = new_halfedges[2];
+    f->halfedge() = new_halfedges[3];
 
     for(int i = 0; i < degree; ++i) {
         h = h_placeholder;
@@ -385,11 +374,13 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::bevel_face(Halfedge_Mesh::F
         Halfedge_Mesh::FaceRef curr_f = new_faces[i];
         Halfedge_Mesh::EdgeRef curr_e0 = new_edges[i * 2];
         Halfedge_Mesh::EdgeRef curr_e1 = new_edges[i * 2 + 1];
+        // h0 is the next halfedge of h
         Halfedge_Mesh::HalfedgeRef curr_h0 = new_halfedges[i * 4];
+        // h1 is the next halfedge of h0
         Halfedge_Mesh::HalfedgeRef curr_h1 = new_halfedges[i * 4 + 1];
-        // h2 is the twin of h1 
+        // h2 is the next halfedge of h1 
         Halfedge_Mesh::HalfedgeRef curr_h2 = new_halfedges[i * 4 + 2];
-        // h3 is the twin of h0
+        // h3 is the twin of h1
         Halfedge_Mesh::HalfedgeRef curr_h3 = new_halfedges[i * 4 + 3];
         
         // top left coner of the new face
@@ -410,32 +401,37 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::bevel_face(Halfedge_Mesh::F
         curr_f->halfedge() = curr_h1;
 
         // half edges
-        int next_h3_index = (i + 2) * 4 - 1;
+        int next_h2_index = (i + 2) * 4 - 2;
         int num_h = degree * 4;
-        Halfedge_Mesh::HalfedgeRef next_h3 = new_halfedges[next_h3_index % num_h];
-        curr_h0->Halfedge_Mesh::Halfedge::set_neighbors(curr_h1, next_h3, top_left_corner, curr_e0, curr_f);
+        Halfedge_Mesh::HalfedgeRef next_h2 = new_halfedges[next_h2_index % num_h];
+
+        curr_h0->Halfedge_Mesh::Halfedge::set_neighbors(curr_h1, next_h2, top_left_corner, curr_e0, curr_f);
+
 
         // h1 follows h0
-        curr_h1->Halfedge_Mesh::Halfedge::set_neighbors(curr_h3, curr_h2, curr_v, curr_e1, curr_f);
+        curr_h1->Halfedge_Mesh::Halfedge::set_neighbors(curr_h2, curr_h3, curr_v, curr_e1, curr_f);
 
-        // h2 is the twin of h1, all the h2s form the halfedges of the beveled face
-        int next_h2_index = (i + 2) * 4 - 2;
-        Halfedge_Mesh::HalfedgeRef next_h2 = new_halfedges[next_h2_index % num_h];
+
+        // h2 follows h1
+        int prev_h0_index = (i + degree - 1) * 4; // twin of h2
+        Halfedge_Mesh::HalfedgeRef prev_h0 = new_halfedges[prev_h0_index % num_h];
+
+        int prev_edge_index = (i + degree - 1) * 2; // edge of h2
+        Halfedge_Mesh::EdgeRef prev_edge = new_edges[prev_edge_index % (degree * 2)];
 
         int prev_vertex_index = (i + degree - 1) % degree;
         Halfedge_Mesh::VertexRef prev_vertex = new_vertices[prev_vertex_index];
 
-        curr_h2->Halfedge_Mesh::Halfedge::set_neighbors(next_h2, curr_h1, prev_vertex, curr_e1, f);
+        curr_h2->Halfedge_Mesh::Halfedge::set_neighbors(h, prev_h0, prev_vertex, prev_edge, curr_f);
 
-        // h3 follows h1
-        int prev_h0_index = (i + degree - 1) * 4;
-        Halfedge_Mesh::HalfedgeRef prev_h0 = new_halfedges[prev_h0_index % num_h];
 
-        int prev_edge_index = (i + degree - 1) * 2;
-        Halfedge_Mesh::EdgeRef prev_edge = new_edges[prev_edge_index % (degree * 2)];
+        // h3 is the twin of h1, all the h3s form the halfedges of the beveled face
+        int next_h3_index = (i + 2) * 4 - 1; // the next of h3
+        Halfedge_Mesh::HalfedgeRef next_h3 = new_halfedges[next_h3_index % num_h];
 
-        curr_h3->Halfedge_Mesh::Halfedge::set_neighbors(h, prev_h0, prev_vertex, prev_edge, curr_f);
+        curr_h3->Halfedge_Mesh::Halfedge::set_neighbors(next_h3, curr_h1, prev_vertex, curr_e1, f);
 
+       
         h_placeholder = h_placeholder->next();
         h->next() = curr_h0;
     }
@@ -549,7 +545,6 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
     int new_halfedges_size = new_halfedges.size();
     Vec3 face_normal = face->normal();
 
-    std::cout << "------start-----" << std::endl;
     for(int i = 0; i < new_halfedges_size; i++) {
         Vec3 pi = start_positions[i];
         Vec3 pi_prev = start_positions[(i + new_halfedges_size - 1) % new_halfedges_size];
@@ -559,10 +554,8 @@ void Halfedge_Mesh::bevel_face_positions(const std::vector<Vec3>& start_position
         Vec3 tangent_offset_vector = (pi - (pi_prev + pi_next) / 2.f).unit() * tangent_offset;
 
         Vec3 new_pos = pi + tangent_offset_vector - normal_offset_vector;
-        std::cout << "new_pos: " << new_pos << std::endl;
         new_halfedges[i]->vertex()->pos = new_pos;
     }
-    std::cout << "------end-----" << std::endl;
 }
 
 /*
