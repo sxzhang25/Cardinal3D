@@ -37,9 +37,51 @@
  */
 std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_vertex(Halfedge_Mesh::VertexRef v) {
 
-    (void)v;
-    return std::nullopt;
+    if(v->on_boundary()) {
+        (void)v;
+        return std::nullopt;
+    }
+    Halfedge_Mesh::FaceRef f = new_face();
+    Halfedge_Mesh::HalfedgeRef h = v->halfedge();
+    std::vector<Halfedge_Mesh::HalfedgeRef> h_twins;
+
+    // erase all the halfedges and edges connected to the vertex
+    do {
+        erase(h);
+        h_twins.push_back(h->twin());
+        erase(h->twin());
+        erase(h->edge());
+        erase(h->face());
+        h = h->twin()->next();
+    } while(h != v->halfedge());
+    erase(v);
+
+    // walk along the contour of the new face
+    std::reverse(h_twins.begin(), h_twins.end());
+    h = v->halfedge()->next();
+    int counter = 0;
+    do {
+        Halfedge_Mesh::HalfedgeRef h_before_v = h_twins[counter % h_twins.size()];
+
+        while(h->next() != h_before_v) {
+            h->face() = f;
+            h = h->next();
+        }
+
+        Halfedge_Mesh::HalfedgeRef next_h = h_before_v->twin()->next();
+        next_h->vertex()->halfedge() = next_h;
+        h->next() = next_h;
+        h->face() = f;
+        h = next_h;
+        counter++;
+
+    } while(h != v->halfedge()->next());
+
+    f->halfedge() = h;
+
+    return f;
 }
+
 
 // helper functions
 Halfedge_Mesh::HalfedgeRef find_prev_h(Halfedge_Mesh::HalfedgeRef h) {
