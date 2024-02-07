@@ -765,7 +765,7 @@ struct Edge_Record {
         if (std::abs(A.det()) > 1e-8) {
             optimal = A.inverse() * b;
         }
-        
+
         // -> Also store the cost associated with collapsing this edge in
         //    Edge_Record::cost.
         cost = dot(Vec4(optimal, 1.0f), (K_sum * Vec4(optimal, 1.0f)));
@@ -862,6 +862,35 @@ template<class T> struct PQueue {
     std::set<T> queue;
 };
 
+
+void restore_edge_information(Halfedge_Mesh::VertexRef v,
+                              std::unordered_map<Halfedge_Mesh::EdgeRef, Edge_Record>& edge_records,
+                              PQueue<Edge_Record>& edge_queue,
+                              std::unordered_map<Halfedge_Mesh::EdgeRef, bool>& edge_not_deleted,
+                              std::unordered_map<Halfedge_Mesh::VertexRef, Mat4>& vertex_quadrics) {
+    
+    Halfedge_Mesh::HalfedgeRef h = v->halfedge();
+    do {
+        if(edge_not_deleted[h->edge()] != true) {
+            Edge_Record new_record(vertex_quadrics, h->edge());
+            edge_queue.insert(new_record);
+            edge_records[h->edge()] = new_record;
+        }
+        h = h->twin()->next();
+    } while(h != v->halfedge());
+}
+
+void remove_edge_information(Halfedge_Mesh::VertexRef v,
+                             std::unordered_map<Halfedge_Mesh::EdgeRef, Edge_Record>& edge_records,
+                             PQueue<Edge_Record>& edge_queue) {
+
+    Halfedge_Mesh::HalfedgeRef h = v->halfedge();
+    do {
+        edge_queue.remove(edge_records[h->edge()]);
+        h = h->twin()->next();
+    } while(h != v->halfedge());
+}
+
 /*
     Mesh simplification. Note that this function returns success in a similar
     manner to the local operations, except with only a boolean value.
@@ -942,53 +971,21 @@ bool Halfedge_Mesh::simplify() {
         VertexRef v1 = e->halfedge()->twin()->vertex();
         Mat4 new_K = vertex_quadrics[v0] + vertex_quadrics[v1];
 
-        std::cout << "before step 4" << std::endl;
         // 4. Remove any edge touching either of its endpoints from the queue.
-        HalfedgeRef h = v0->halfedge();
-        do {
-            edge_queue.remove(edge_records[h->edge()]);
-            h = h->twin()->next();
-        } while(h != v0->halfedge());
-
-        h = v1->halfedge();
-        do {
-            edge_queue.remove(edge_records[h->edge()]);
-            h = h->twin()->next();
-        } while(h != v1->halfedge());
-        std::cout << "after step 4" << std::endl;
+        remove_edge_information(v0, edge_records, edge_queue);
+        remove_edge_information(v1, edge_records, edge_queue);
 
         // 5. Collapse the edge.
         std::optional<Halfedge_Mesh::VertexRef> v_erased = collapse_edge_erase(e);
 
-        std::cout << "before step 5" << std::endl;
         if(v_erased.has_value() == false) {
             // if the edge is not deleted, we need to add the edge back to the queue
             edge_not_deleted[e] = true;
-            h = v0->halfedge();
-            do {
-                // only add the information back if the edge has been deleted
-                if(edge_not_deleted[h->edge()] != true) {
-                    Edge_Record new_record(vertex_quadrics, h->edge());
-                    edge_queue.insert(new_record);
-                    edge_records[h->edge()] = new_record;
-                }
-                h = h->twin()->next();
-            } while(h != v0->halfedge());
+            restore_edge_information(v0, edge_records, edge_queue, edge_not_deleted, vertex_quadrics);
 
-            h = v1->halfedge();
-            do {
-                // only add the information back if the edge has been deleted
-                if(edge_not_deleted[h->edge()] != true) {
-                    Edge_Record new_record(vertex_quadrics, h->edge());
-                    edge_queue.insert(new_record);
-                    edge_records[h->edge()] = new_record;
-                }
-                h = h->twin()->next();
-            } while(h != v1->halfedge());
-
+            restore_edge_information(v1, edge_records, edge_queue, edge_not_deleted, vertex_quadrics);
             continue;
         }
-        std::cout << "after step 5" << std::endl;
 
         // 6. Set the quadric of the new vertex to the quadric computed in Step 3.
         VertexRef new_v = v_erased.value();
@@ -996,7 +993,7 @@ bool Halfedge_Mesh::simplify() {
         vertex_quadrics[new_v] = new_K;
 
         // 7. Insert any edge touching the new vertex into the queue, creating new edge records for each of them.
-        h = new_v->halfedge();
+        Halfedge_Mesh::HalfedgeRef h = new_v->halfedge();
         do {
             Edge_Record new_record(vertex_quadrics, h->edge());
             edge_queue.insert(new_record);
