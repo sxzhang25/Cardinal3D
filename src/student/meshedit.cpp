@@ -860,17 +860,133 @@ bool Halfedge_Mesh::simplify() {
     // Compute initial quadrics for each face by simply writing the plane equation
     // for the face in homogeneous coordinates. These quadrics should be stored
     // in face_quadrics
+    for(FaceRef f = faces_begin(); f != faces_end(); f++) {
+        if(f->degree() != 3)
+            return false;
+
+        Vec3 n = f->normal();
+        float d = -dot(n, f->halfedge()->vertex()->pos);
+        Vec4 v(n, d);
+        Mat4 K = outer(v, v);
+        face_quadrics.insert({f, K});
+    }
+
     // -> Compute an initial quadric for each vertex as the sum of the quadrics
     //    associated with the incident faces, storing it in vertex_quadrics
+    for(VertexRef v = vertices_begin(); v != vertices_end(); v++) {
+        Mat4 K(Mat4::Zero);
+        HalfedgeRef h = v->halfedge();
+        do {
+            FaceRef curr_f = h->face();
+            K += face_quadrics[curr_f];
+            h = h->twin()->next();
+        } while(h != v->halfedge());
+
+        vertex_quadrics.insert({v, K});
+    }
+
+
     // -> Build a priority queue of edges according to their quadric error cost,
     //    i.e., by building an Edge_Record for each edge and sticking it in the
     //    queue. You may want to use the above PQueue<Edge_Record> for this.
+    std::unordered_map<EdgeRef, bool> edge_not_deleted;
+
+    for(EdgeRef e = edges_begin(); e != edges_end(); e++) {
+        Edge_Record curr_record(vertex_quadrics, e);
+        edge_records.insert({e, curr_record});
+        edge_queue.insert(curr_record);
+        edge_not_deleted.insert({e, false});
+    }
+
     // -> Until we reach the target edge budget, collapse the best edge. Remember
     //    to remove from the queue any edge that touches the collapsing edge
     //    BEFORE it gets collapsed, and add back into the queue any edge touching
     //    the collapsed vertex AFTER it's been collapsed. Also remember to assign
     //    a quadric to the collapsed vertex, and to pop the collapsed edge off the
     //    top of the queue.
+    int input_face_count = (int)faces.size();
+    int target_face_count = ceil(input_face_count / 4);
+    std::cout << "input_face_count: " << input_face_count << std::endl;
+    std::cout << "target_face_count: " << target_face_count << std::endl;
+
+    while ((int)faces.size() > target_face_count && !edge_queue.queue.empty()) {
+        std::cout << "face size: " << (int)faces.size() << std::endl;
+
+        // 1. Get the cheapest edge from the queue.
+        Edge_Record best_edge = edge_queue.top();
+
+        // 2. Remove the cheapest edge from the queue by calling pop().
+        edge_queue.pop();
+
+        // 3. Compute the new quadric by summing the quadrics at its two endpoints.
+        EdgeRef e = best_edge.edge;
+        VertexRef v0 = e->halfedge()->vertex();
+        VertexRef v1 = e->halfedge()->twin()->vertex();
+        Mat4 new_K = vertex_quadrics[v0] + vertex_quadrics[v1];
+
+        std::cout << "before step 4" << std::endl;
+        // 4. Remove any edge touching either of its endpoints from the queue.
+        HalfedgeRef h = v0->halfedge();
+        do {
+            edge_queue.remove(edge_records[h->edge()]);
+            h = h->twin()->next();
+        } while(h != v0->halfedge());
+
+        h = v1->halfedge();
+        do {
+            edge_queue.remove(edge_records[h->edge()]);
+            h = h->twin()->next();
+        } while(h != v1->halfedge());
+        std::cout << "after step 4" << std::endl;
+
+        // 5. Collapse the edge.
+        std::optional<Halfedge_Mesh::VertexRef> v_erased = collapse_edge_erase(e);
+
+        std::cout << "before step 5" << std::endl;
+        if(v_erased.has_value() == false) {
+            // if the edge is not deleted, we need to add the edge back to the queue
+            edge_not_deleted[e] = true;
+            h = v0->halfedge();
+            do {
+                // only add the information back if the edge has been deleted
+                if(edge_not_deleted[h->edge()] != true) {
+                    Edge_Record new_record(vertex_quadrics, h->edge());
+                    edge_queue.insert(new_record);
+                    edge_records[h->edge()] = new_record;
+                }
+                h = h->twin()->next();
+            } while(h != v0->halfedge());
+
+            h = v1->halfedge();
+            do {
+                // only add the information back if the edge has been deleted
+                if(edge_not_deleted[h->edge()] != true) {
+                    Edge_Record new_record(vertex_quadrics, h->edge());
+                    edge_queue.insert(new_record);
+                    edge_records[h->edge()] = new_record;
+                }
+                h = h->twin()->next();
+            } while(h != v1->halfedge());
+
+            continue;
+        }
+        std::cout << "after step 5" << std::endl;
+
+        // 6. Set the quadric of the new vertex to the quadric computed in Step 3.
+        VertexRef new_v = v_erased.value();
+        new_v->pos = best_edge.optimal;
+        vertex_quadrics[new_v] = new_K;
+
+        // 7. Insert any edge touching the new vertex into the queue, creating new edge records for each of them.
+        h = new_v->halfedge();
+        do {
+            Edge_Record new_record(vertex_quadrics, h->edge());
+            edge_queue.insert(new_record);
+            edge_records[h->edge()] = new_record;
+            h = h->twin()->next();
+        } while(h != new_v->halfedge());
+    }
+
 
     // Note: if you erase elements in a local operation, they will not be actually deleted
     // until do_erase or validate are called. This is to facilitate checking
@@ -879,5 +995,5 @@ bool Halfedge_Mesh::simplify() {
     // but here simply calling collapse_edge() will not erase the elements.
     // You should use collapse_edge_erase() instead for the desired behavior.
 
-    return false;
+    return true;
 }
