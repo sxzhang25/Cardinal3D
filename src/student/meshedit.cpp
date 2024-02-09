@@ -122,11 +122,8 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::E
     Halfedge_Mesh::VertexRef curr_h_v = curr_h->vertex();
     Halfedge_Mesh::VertexRef curr_h_twin_v = curr_h_twin->vertex();
 
-    // modify the halfedge of two vertices of deleted edge
     curr_h_v->halfedge() = curr_h_twin->next();
     curr_h_twin_v->halfedge() = curr_h->next();
-
-    // modify face0's halfedge to something not deleted.
     curr_f->halfedge() = curr_h_twin->next();
 
     // loop through the halfedges of the opposite face and assign them to the other face
@@ -136,10 +133,10 @@ std::optional<Halfedge_Mesh::FaceRef> Halfedge_Mesh::erase_edge(Halfedge_Mesh::E
         temp_h = temp_h->next();
     }
 
-    // point curr_h_twin->prev and assign it's next to curr_h->next
+    // find curr_h_twin->prev and assign it's next to curr_h->next
     curr_h_twin_prev->next() = curr_h_next;
 
-    // point curr_h->prev and assign it's next to curr_h_twin->next
+    // find curr_h->prev and assign it's next to curr_h_twin->next
     curr_h_prev->next() = curr_h_twin_next;
 
     erase(e);
@@ -1340,12 +1337,8 @@ bool Halfedge_Mesh::simplify() {
     //    top of the queue.
     int input_face_count = (int)faces.size();
     int target_face_count = ceil(input_face_count / 4);
-    std::cout << "input_face_count: " << input_face_count << std::endl;
-    std::cout << "target_face_count: " << target_face_count << std::endl;
 
     while ((int)faces.size() > target_face_count && !edge_queue.queue.empty()) {
-        std::cout << "face size: " << (int)faces.size() << std::endl;
-
         // 1. Get the cheapest edge from the queue.
         Edge_Record best_edge = edge_queue.top();
 

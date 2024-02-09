@@ -6,10 +6,11 @@ Contributions:
     - Triangulation
     - Linear Subdivision
     - CatmullClark Subdivision
-    - Advanced: LoopSubdivision
   Jiaju:
     - EdgeCollapse
     - FaceBevel
     - Simplification
     - Create 3D model
-    - Advanced: EraseVertex, EraseEdge
+    - Advanced: 
+         EraseVertex
+         EraseEdge
