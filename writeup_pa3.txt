@@ -1,0 +1,9 @@
+Members: Jiaju Ma (jiajuma), Sharon Zhang (szhang25)
+Contributions:
+  Sharon: 
+    - Task 1
+    - Task 2
+    - Task 4
+  Jiaju:
+    - Task 3
+    - Task 6
