@@ -3,6 +3,7 @@
 #include "../rays/samplers.h"
 #include "../util/rand.h"
 #include "debug.h"
+#include <iostream>
 
 namespace PT {
 
@@ -20,19 +21,27 @@ Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
     // incoming light using trace_ray.
 
     // If n_samples is 1, please send the ray through the center of the pixel.
-    // If n_samples > 1, please send the ray through any random point within the pixel
+    Ray out;
+    Samplers::Rect::Uniform uniform_sampler;
+    if (n_samples == 1) {
+        xy += Vec2(0.5f, 0.5f);
+    } else {  // If n_samples > 1, please send the ray through any random point within the pixel
+        // Tip: consider making a call to Samplers::Rect::Uniform
+        float pdf;
+        xy += uniform_sampler.sample(pdf);
+    }
 
-    // Tip: consider making a call to Samplers::Rect::Uniform
+    // As an example, the code below generates a ray through the bottom left of the
+    // specified pixel
+    out = camera.generate_ray(xy / wh);
 
     // Tip: you may want to use log_ray for debugging. Given ray t, the following lines
     // of code will log .03% of all rays (see util/rand.h) for visualization in the app.
     // see student/debug.h for more detail.
-    //if (RNG::coin_flip(0.0003f))
-    //    log_ray(out, 10.0f);
+    if (RNG::coin_flip(0.0003f))
+        std::cout << std::to_string(out.dir.x) + ", " + std::to_string(out.dir.y) + "\n";
+       log_ray(out, 10.0f);
 
-    // As an example, the code below generates a ray through the bottom left of the
-    // specified pixel
-    Ray out = camera.generate_ray(xy / wh);
     return trace_ray(out);
 }
 
