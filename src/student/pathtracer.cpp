@@ -38,9 +38,9 @@ Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
     // Tip: you may want to use log_ray for debugging. Given ray t, the following lines
     // of code will log .03% of all rays (see util/rand.h) for visualization in the app.
     // see student/debug.h for more detail.
-    if (RNG::coin_flip(0.0003f))
+    if (RNG::coin_flip(0.000003f))
         std::cout << std::to_string(out.dir.x) + ", " + std::to_string(out.dir.y) + "\n";
-       log_ray(out, 10.0f);
+        log_ray(out, 10.0f);
 
     return trace_ray(out);
 }
