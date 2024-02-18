@@ -13,6 +13,11 @@ BBox Triangle::bbox() const {
     // account for that here, or later on in BBox::intersect
 
     BBox box;
+
+    box.enclose(vertex_list[v0].position);
+    box.enclose(vertex_list[v1].position);
+    box.enclose(vertex_list[v2].position);
+
     return box;
 }
 
@@ -26,23 +31,42 @@ Trace Triangle::hit(const Ray& ray) const {
     Tri_Mesh_Vert v_2 = vertex_list[v2];
 
     // here just to avoid unused variable warnings, students should remove the following three lines.
-    (void)v_0;
-    (void)v_1;
-    (void)v_2;
+    // (void)v_0;
+    // (void)v_1;
+    // (void)v_2;
+    auto det = [] (Vec3 a, Vec3 b, Vec3 c) {
+        return a[0] * (b[1] * c[2] - c[1] * b[2]) - a[1] * (b[0] * c[2] - c[0] * b[2]) + a[2] * (b[0] * c[1] - c[0] * b[1]);
+    };
     
     // TODO (PathTracer): Task 2
     // Intersect this ray with a triangle defined by the above three points.
     // Intersection should yield a ray t-value, and a hit point (u,v) on the surface of the triangle
-
-    // You'll need to fill in a "Trace" struct describing information about the hit (or lack of hit)
-
+    // TODO: Check CCW positions.
+    Vec3 e1 = Vec3(v_1.position - v_0.position);
+    Vec3 e2 = Vec3(v_2.position - v_0.position);
+    Vec3 s = ray.point - v_0.position;
+    Vec3 d = ray.dir;
     Trace ret;
-    ret.origin = ray.point;
-    ret.hit = false;       // was there an intersection?
-    ret.distance = 0.0f;   // at what distance did the intersection occur?
-    ret.position = Vec3{}; // where was the intersection?
-    ret.normal = Vec3{};   // what was the surface normal at the intersection?
-                           // (this should be interpolated between the three vertex normals)
+    float disc = det(e1, e2, -d);
+    if (disc == 0) {
+        return ret;
+    }
+
+    Vec3 uvt = Vec3(det(s, e2, -d), det(e1, s, -d), det(e1, e2, s)) / disc;
+    float u = uvt[0];
+    float v = uvt[1];
+    float t = uvt[2];
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1 && t >= ray.dist_bounds[0] && t <= ray.dist_bounds[1]) {
+        // You'll need to fill in a "Trace" struct describing information about the hit (or lack of hit)
+
+        ret.origin = ray.point;
+        ret.hit = true;       // was there an intersection?
+        ret.distance = t;   // at what distance did the intersection occur?
+        ret.position = ray.at(t); // where was the intersection?
+        ret.normal = v_0.normal * (1 - u - v) + v_1.normal * u + v_2.normal * v;   
+                            // what was the surface normal at the intersection?
+                            // (this should be interpolated between the three vertex normals)
+    }
     return ret;
 }
 
