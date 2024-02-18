@@ -18,5 +18,11 @@ Ray Camera::generate_ray(Vec2 screen_coord) const {
     // Tip: compute the ray direction in view space and use
     // the camera space to world space transform (iview) to transform the ray back into world space.
 
-    return Ray();
+    float vs_height = 2.0f * tan(0.5f * M_PI * vert_fov / 180.0f);
+    float vs_width = aspect_ratio * vs_height;
+    Vec3 vs_dir = Vec3(vs_width * (screen_coord.x - 0.5f), vs_height * (screen_coord.y - 0.5f), -1.0f);
+    Vec3 cs_dir = iview * vs_dir;
+    Ray r = Ray(position, cs_dir);
+
+    return r;
 }
