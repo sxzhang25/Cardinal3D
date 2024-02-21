@@ -59,58 +59,95 @@ void BVH<Primitive>::build(std::vector<Primitive>&& prims, size_t max_leaf_size)
         return;
     }
 
-    // compute bounding box for all primitives
-    BBox bb;
-    for(size_t i = 0; i < primitives.size(); ++i) {
-        bb.enclose(primitives[i].bbox());
+    typedef struct {
+        BBox bbox;
+        size_t prim_count;
+        float total_area;
+    } Bucket;
+    // Replace these
+    std::stack<size_t> S;
+    BBox box;
+    for(const Primitive& prim : primitives) box.enclose(prim.bbox());
+
+    root_idx = new_node(box, 0, primitives.size(), 0, 0);
+    S.push(root_idx);
+
+    while(!S.empty()) {
+        size_t curIdx = S.top();
+        S.pop();
+        Node& curNode = nodes[curIdx];
+        size_t pstart = curNode.start;
+        size_t pend = pstart + curNode.size;
+        if(curNode.size <= max_leaf_size) {
+            continue;
+        }
+        std::vector<Bucket> buckets(PARTS);
+        BBox minBoxA;
+        BBox minBoxB;
+        int minAxis = 0;
+        size_t minACount = 0;
+        size_t minBCount = 0;
+        int minCut = 0;
+        BBox curBox = curNode.bbox;
+        float minSAH = FLT_MAX;
+        for(int axis = 0; axis < 3; axis++) {
+            for(int i = 0; i < PARTS; i++) {
+                buckets[i].bbox.reset();
+                buckets[i].prim_count = 0;
+                buckets[i].total_area = 0.0f;
+            }
+            for(size_t i = pstart; i < pend; i++) {
+                Primitive& prim = primitives.at(i);
+                size_t bid = compute_bucket(curBox, prim.bbox().center(), axis);
+                Bucket& B = buckets.at(bid);
+                B.bbox.enclose(prim.bbox());
+                B.prim_count++;
+            }
+            for(size_t i = 1; i < PARTS; i++) {
+                BBox boxA = BBox();
+                BBox boxB = BBox();
+                size_t ACount = 0;
+                size_t BCount = 0;
+                for(size_t j = 0; j < i; j++) {
+                    boxA.enclose(buckets.at(j).bbox);
+                    ACount += buckets.at(j).prim_count;
+                }
+                for(size_t j = i; j < PARTS; j++) {
+                    boxB.enclose(buckets.at(j).bbox);
+                    BCount += buckets.at(j).prim_count;
+                }
+                float SAH =
+                    (float)ACount * boxA.surface_area() + (float)BCount * boxB.surface_area();
+                if(SAH < minSAH) {
+                    // save some info
+                    minSAH = SAH;
+                    minBoxA = boxA;
+                    minBoxB = boxB;
+                    minBCount = BCount;
+                    minACount = ACount;
+                    minCut = (int)i;
+                    minAxis = axis;
+                }
+            }
+        }
+        BBox boxA = minBoxA;
+        BBox boxB = minBoxB;
+        size_t ACount = minACount;
+        size_t BCount = minBCount;
+        auto part = [curBox, minAxis, minCut](Primitive& prim) {
+            float pos = (prim.bbox().center()[minAxis] - curBox.min[minAxis]) /
+                        (curBox.max[minAxis] - curBox.min[minAxis]);
+            int idx = (size_t)(pos * (float)PARTS);
+            return idx < minCut;
+        };
+        std::partition(primitives.begin() + pstart, primitives.begin() + pend, part);
+        size_t lchild = new_node(boxA, pstart, ACount, 0, 0);
+        size_t rchild = new_node(boxB, pstart + ACount, BCount, 0, 0);
+        nodes[curIdx].l = lchild;
+        nodes[curIdx].r = rchild;
+        S.push(lchild);
+        S.push(rchild);
     }
-
-    // set up root node (root BVH). Notice that it contains all primitives.
-    size_t root_node_addr = new_node();
-    Node& node = nodes[root_node_addr];
-    node.bbox = bb;
-    node.start = 0;
-    node.size = primitives.size();
-
-    // Create bounding boxes for children
-    BBox split_leftBox;
-    BBox split_rightBox;
-
-    // compute bbox for left child
-    Primitive& p = primitives[0];
-    BBox pbb = p.bbox();
-    split_leftBox.enclose(pbb);
-
-    // compute bbox for right child
-    for(size_t i = 1; i < primitives.size(); ++i) {
-        Primitive& p = primitives[i];
-        BBox pbb = p.bbox();
-        split_rightBox.enclose(pbb);
-    }
-
-    // Note that by construction in this simple example, the primitives are
-    // contiguous as required. But in the students real code, students are
-    // responsible for reorganizing the primitives in the primitives array so that
-    // after a SAH split is computed, the chidren refer to contiguous ranges of primitives.
-
-    size_t startl = 0;  // starting prim index of left child
-    size_t rangel = 1;  // number of prims in left child
-    size_t startr = startl + rangel;  // starting prim index of right child
-    size_t ranger = primitives.size() - rangel; // number of prims in right child
-
-    // create child nodes
-    size_t node_addr_l = new_node();
-    size_t node_addr_r = new_node();
-    nodes[root_node_addr].l = node_addr_l;
-    nodes[root_node_addr].r = node_addr_r;
-
-    nodes[node_addr_l].bbox = split_leftBox;
-    nodes[node_addr_l].start = startl;
-    nodes[node_addr_l].size = rangel;
-
-    nodes[node_addr_r].bbox = split_rightBox;
-    nodes[node_addr_r].start = startr;
-    nodes[node_addr_r].size = ranger;
 }
 
 template<typename Primitive>
@@ -124,12 +161,44 @@ Trace BVH<Primitive>::hit(const Ray& ray) const {
     // The starter code simply iterates through all the primitives.
     // Again, remember you can use hit() on any Primitive value.
 
-    Trace ret;
-    for(const Primitive& prim : primitives) {
-        Trace hit = prim.hit(ray);
-        ret = Trace::min(ret, hit);
+    // implementing the front-to-back traversal described in lecture
+    static size_t curr_node = 0;
+    Trace closest, closest_temp;
+
+    if(nodes[curr_node].is_leaf()) {
+        for(size_t i = nodes[curr_node].start; i < nodes[curr_node].start + nodes[curr_node].size; i++) {
+            Trace hit = primitives[i].hit(ray);
+            closest = Trace::min(closest, hit);
+        }
+    } else {
+        Vec2 t1, t2, t_second;
+        size_t first, second;
+        size_t left = nodes[curr_node].l;
+        size_t right = nodes[curr_node].r;
+        primitives[left].bbox().hit(ray, t1);
+        primitives[right].bbox().hit(ray, t2);
+
+        if(t1.x >= t2.x) {
+            first = right;
+            second = left;
+            t_second = t1;
+        } else {
+            first = left;
+            second = right;
+            t_second = t2;
+        }
+        curr_node = first;
+        closest = hit(ray);
+        if(t_second.x < closest.distance) {
+            curr_node = second;
+            closest_temp = hit(ray);
+        }
+        if(closest_temp.hit) {
+            closest = closest_temp;
+        }
     }
-    return ret;
+
+    return closest;
 }
 
 template<typename Primitive>
