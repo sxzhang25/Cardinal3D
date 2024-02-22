@@ -9,16 +9,18 @@ bool BBox::hit(const Ray& ray, Vec2& times) const {
     // If the ray intersected the bounding box within the range given by
     // [times.x,times.y], update times with the new intersection times.
 
-    // to make some updates maybe
-    float t_min = (min.x - ray.point.x) / ray.dir.x;
-    float t_max = (max.x - ray.point.x) / ray.dir.x;
+    Vec3 origin = ray.point;
+    Vec3 direction = ray.dir;
+
+    float t_min = (min.x - origin.x) / direction.x;
+    float t_max = (max.x - origin.x) / direction.x;
 
     if(t_min > t_max) {
         std::swap(t_min, t_max);
     }
 
-    float ty_min = (min.y - ray.point.y) / ray.dir.y;
-    float ty_max = (max.y - ray.point.y) / ray.dir.y;
+    float ty_min = (min.y - origin.y) / direction.y;
+    float ty_max = (max.y - origin.y) / direction.y;
 
     if(ty_min > ty_max) {
         std::swap(ty_min, ty_max);
@@ -36,8 +38,8 @@ bool BBox::hit(const Ray& ray, Vec2& times) const {
         t_max = ty_max;
     }
 
-    float tz_min = (min.z - ray.point.z) / ray.dir.z;
-    float tz_max = (max.z - ray.point.z) / ray.dir.z;
+    float tz_min = (min.z - origin.z) / direction.z;
+    float tz_max = (max.z - origin.z) / direction.z;
 
     if(tz_min > tz_max) {
         std::swap(tz_min, tz_max);
