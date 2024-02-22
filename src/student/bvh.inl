@@ -5,6 +5,14 @@
 
 namespace PT {
 
+// helper function to compute the bucket index
+template<typename Primitive>
+size_t BVH<Primitive>::compute_bucket(BBox box, Vec3 center, int axis) {
+    float pos = (center[axis] - box.min[axis]) / (box.max[axis] - box.min[axis]);
+    size_t idx = (size_t)(pos * (float)PARTS);
+    return std::min<size_t>(idx, PARTS - 1);
+}
+
 // construct BVH hierarchy given a vector of prims
 template<typename Primitive>
 void BVH<Primitive>::build(std::vector<Primitive>&& prims, size_t max_leaf_size) {
@@ -64,6 +72,7 @@ void BVH<Primitive>::build(std::vector<Primitive>&& prims, size_t max_leaf_size)
         size_t prim_count;
         float total_area;
     } Bucket;
+
     // Replace these
     std::stack<size_t> S;
     BBox box;
@@ -163,43 +172,57 @@ Trace BVH<Primitive>::hit(const Ray& ray) const {
 
     // implementing the front-to-back traversal described in lecture
     static size_t curr_node = 0;
-    Trace closest, closest_temp;
+    Trace closest;
 
     if(nodes[curr_node].is_leaf()) {
-        for(size_t i = nodes[curr_node].start; i < nodes[curr_node].start + nodes[curr_node].size; i++) {
-            Trace hit = primitives[i].hit(ray);
-            closest = Trace::min(closest, hit);
+        size_t start = nodes[curr_node].start;
+        size_t size = nodes[curr_node].size;
+        for(size_t i = start; i < start + size; i++) {
+            closest = Trace::min(closest, primitives[i].hit(ray));
         }
-    } else {
-        Vec2 t1, t2, t_second;
-        size_t first, second;
-        size_t left = nodes[curr_node].l;
-        size_t right = nodes[curr_node].r;
-        primitives[left].bbox().hit(ray, t1);
-        primitives[right].bbox().hit(ray, t2);
 
+    } else {
+        
+        // left and right child indices
+        size_t left_node = nodes[curr_node].l;
+        size_t right_node = nodes[curr_node].r;
+
+        // left and right child hit
+        Vec2 t1, t2, t_second;
+        primitives[left_node].bbox().hit(ray, t1);
+        primitives[right_node].bbox().hit(ray, t2);
+
+        // indices of the closest and second closest children
+        size_t first, second;
+        first = left_node;
+        second = right_node;
+        t_second = t2;
+
+        // swap if t1 is greater
         if(t1.x >= t2.x) {
-            first = right;
-            second = left;
+            first = right_node;
+            second = left_node;
             t_second = t1;
-        } else {
-            first = left;
-            second = right;
-            t_second = t2;
         }
+
         curr_node = first;
         closest = hit(ray);
+
+        // if the second closest is closer than the closest, traverse to the second closest
+        Trace second_closest_hit;
         if(t_second.x < closest.distance) {
             curr_node = second;
-            closest_temp = hit(ray);
+            second_closest_hit = hit(ray);
         }
-        if(closest_temp.hit) {
-            closest = closest_temp;
+
+        if(second_closest_hit.hit) {
+            closest = second_closest_hit;
         }
     }
 
     return closest;
 }
+
 
 template<typename Primitive>
 BVH<Primitive>::BVH(std::vector<Primitive>&& prims, size_t max_leaf_size) {
