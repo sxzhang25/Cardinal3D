@@ -7,10 +7,17 @@ namespace PT {
 
 // helper function to compute the bucket index
 template<typename Primitive>
-size_t BVH<Primitive>::compute_bucket(BBox box, Vec3 center, int axis) {
-    float pos = (center[axis] - box.min[axis]) / (box.max[axis] - box.min[axis]);
-    size_t idx = (size_t)(pos * (float)PARTS);
-    return std::min<size_t>(idx, PARTS - 1);
+size_t BVH<Primitive>::compute_bucket(BBox box, Vec3 center, int axis, int num_buckets) {
+    float length = box.max[axis] - box.min[axis];
+    float pos = center[axis] - box.min[axis];
+    float proportion = pos / length;
+    size_t idx = (size_t)(proportion * (float)num_buckets);
+    size_t max_idx = (size_t)num_buckets - 1;
+
+    if(idx > max_idx) {
+        return max_idx;
+    }
+    return idx;
 }
 
 // construct BVH hierarchy given a vector of prims
@@ -69,93 +76,112 @@ void BVH<Primitive>::build(std::vector<Primitive>&& prims, size_t max_leaf_size)
 
     typedef struct {
         BBox bbox;
-        size_t prim_count;
+        size_t num_prim;
         float total_area;
     } Bucket;
 
-    // Replace these
-    std::stack<size_t> S;
-    BBox box;
-    for(const Primitive& prim : primitives) box.enclose(prim.bbox());
+    // number of buckets is usally no more than 32
+    const int num_buckets = 32;
 
-    root_idx = new_node(box, 0, primitives.size(), 0, 0);
-    S.push(root_idx);
+    std::stack<size_t> bbox_stack;
+    BBox root_bbox;
 
-    while(!S.empty()) {
-        size_t curIdx = S.top();
-        S.pop();
-        Node& curNode = nodes[curIdx];
-        size_t pstart = curNode.start;
-        size_t pend = pstart + curNode.size;
-        if(curNode.size <= max_leaf_size) {
+    // initialize the bounding box to enclose all the primitives
+    for (size_t i = 0; i < primitives.size(); i++) {
+        root_bbox.enclose(primitives[i].bbox());
+    }
+
+    root_idx = new_node(root_bbox, 0, primitives.size(), 0, 0);
+    bbox_stack.push(root_idx);
+
+    while(!bbox_stack.empty()) {
+        size_t curr_id = bbox_stack.top();
+        bbox_stack.pop();
+        Node& curr_node = nodes[curr_id];
+
+        size_t prim_start = curr_node.start;
+        size_t prim_end = curr_node.start + curr_node.size;
+        if(curr_node.size <= max_leaf_size) {
             continue;
         }
-        std::vector<Bucket> buckets(PARTS);
-        BBox minBoxA;
-        BBox minBoxB;
-        int minAxis = 0;
-        size_t minACount = 0;
-        size_t minBCount = 0;
-        int minCut = 0;
-        BBox curBox = curNode.bbox;
-        float minSAH = FLT_MAX;
+
+        std::vector<Bucket> buckets(num_buckets);
+        int min_axis = 0;
+        int min_split_id = 0;
+        BBox min_bbox_half_1;
+        BBox min_bbox_half_2;
+        size_t min_half_1_num_prim = 0;
+        size_t min_half_2_num_prim = 0;
+        float min_SAH = FLT_MAX;
+        
+        BBox curr_node_bbox = curr_node.bbox;
         for(int axis = 0; axis < 3; axis++) {
-            for(int i = 0; i < PARTS; i++) {
+            // reset the buckets
+            for(int i = 0; i < num_buckets; i++) {
                 buckets[i].bbox.reset();
-                buckets[i].prim_count = 0;
+                buckets[i].num_prim = 0;
                 buckets[i].total_area = 0.0f;
             }
-            for(size_t i = pstart; i < pend; i++) {
-                Primitive& prim = primitives.at(i);
-                size_t bid = compute_bucket(curBox, prim.bbox().center(), axis);
-                Bucket& B = buckets.at(bid);
-                B.bbox.enclose(prim.bbox());
-                B.prim_count++;
+            
+            // assign each primitive of the node to a bucket
+            for(size_t i = prim_start; i < prim_end; i++) {
+                Primitive& curr_prim = primitives[i];
+                Bucket& B = buckets[compute_bucket(curr_node_bbox, curr_prim.bbox().center(), axis, num_buckets)];
+                B.bbox.enclose(curr_prim.bbox());
+                B.num_prim++;
             }
-            for(size_t i = 1; i < PARTS; i++) {
-                BBox boxA = BBox();
-                BBox boxB = BBox();
-                size_t ACount = 0;
-                size_t BCount = 0;
-                for(size_t j = 0; j < i; j++) {
-                    boxA.enclose(buckets.at(j).bbox);
-                    ACount += buckets.at(j).prim_count;
+
+            // evaluate the SAH for each possible split
+            for(size_t i = 1; i < num_buckets; i++) {
+                BBox bbox_half_1 = BBox();
+                BBox bbox_half_2 = BBox();
+                size_t half_1_num_prim = 0;
+                size_t half_2_num_prim = 0;
+
+                for(size_t j = 0; j < num_buckets; j++) {
+                    if (j < i) {
+                        // all the buckets before i
+                        bbox_half_1.enclose(buckets[j].bbox);
+                        half_1_num_prim += buckets[j].num_prim;
+                    } else {
+                        // all the buckets after i
+                        bbox_half_2.enclose(buckets[j].bbox);
+                        half_2_num_prim += buckets[j].num_prim;
+                    }
                 }
-                for(size_t j = i; j < PARTS; j++) {
-                    boxB.enclose(buckets.at(j).bbox);
-                    BCount += buckets.at(j).prim_count;
-                }
-                float SAH =
-                    (float)ACount * boxA.surface_area() + (float)BCount * boxB.surface_area();
-                if(SAH < minSAH) {
-                    // save some info
-                    minSAH = SAH;
-                    minBoxA = boxA;
-                    minBoxB = boxB;
-                    minBCount = BCount;
-                    minACount = ACount;
-                    minCut = (int)i;
-                    minAxis = axis;
+
+                float curr_SAH = (float)half_1_num_prim * bbox_half_1.surface_area() + (float)half_2_num_prim * bbox_half_2.surface_area();
+
+                // update min cost
+                if(curr_SAH < min_SAH) {
+                    min_SAH = curr_SAH;
+                    min_axis = axis;
+                    min_split_id = (int)i;
+                    min_bbox_half_1 = bbox_half_1;
+                    min_bbox_half_2 = bbox_half_2;
+                    min_half_2_num_prim = half_2_num_prim;
+                    min_half_1_num_prim = half_1_num_prim;
                 }
             }
         }
-        BBox boxA = minBoxA;
-        BBox boxB = minBoxB;
-        size_t ACount = minACount;
-        size_t BCount = minBCount;
-        auto part = [curBox, minAxis, minCut](Primitive& prim) {
-            float pos = (prim.bbox().center()[minAxis] - curBox.min[minAxis]) /
-                        (curBox.max[minAxis] - curBox.min[minAxis]);
-            int idx = (size_t)(pos * (float)PARTS);
-            return idx < minCut;
-        };
-        std::partition(primitives.begin() + pstart, primitives.begin() + pend, part);
-        size_t lchild = new_node(boxA, pstart, ACount, 0, 0);
-        size_t rchild = new_node(boxB, pstart + ACount, BCount, 0, 0);
-        nodes[curIdx].l = lchild;
-        nodes[curIdx].r = rchild;
-        S.push(lchild);
-        S.push(rchild);
+
+        // reordering the primitives based on the split
+        std::partition(primitives.begin() + prim_start, primitives.begin() + prim_end, 
+        [curr_node_bbox, min_axis, min_split_id](Primitive& prim) {
+            float bbox_min = curr_node_bbox.min[min_axis];
+            float bbox_max = curr_node_bbox.max[min_axis];
+
+            float pos = (prim.bbox().center()[min_axis] - bbox_min) / (bbox_max - bbox_min);
+            int idx = (size_t)(pos * (float)num_buckets);
+            return idx < min_split_id;
+        });
+
+        size_t left_child_id = new_node(min_bbox_half_1, prim_start, min_half_1_num_prim, 0, 0);
+        size_t right_child_id = new_node(min_bbox_half_2, prim_start + min_half_1_num_prim, min_half_2_num_prim, 0, 0);
+        bbox_stack.push(left_child_id);
+        bbox_stack.push(right_child_id);
+        nodes[curr_id].l = left_child_id;
+        nodes[curr_id].r = right_child_id;
     }
 }
 

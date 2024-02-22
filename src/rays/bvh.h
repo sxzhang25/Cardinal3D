@@ -7,7 +7,6 @@
 #include "trace.h"
 
 namespace PT {
-#define PARTS 32
 
 template<typename Primitive> class BVH {
 public:
@@ -45,7 +44,7 @@ private:
     size_t root_idx = 0;
 
     // compute_bucket helper function
-    size_t compute_bucket(BBox box, Vec3 center, int axis);
+    size_t compute_bucket(BBox box, Vec3 center, int axis, int num_buckets);
 };
 
 } // namespace PT
