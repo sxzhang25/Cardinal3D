@@ -22,7 +22,7 @@ Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
 
     // If n_samples is 1, please send the ray through the center of the pixel.
     Ray out;
-    Samplers::Rect::Uniform uniform_sampler;
+    Samplers::Rect::Uniform uniform_sampler(Vec2(1.0f, 1.0f));
     if (n_samples == 1) {
         xy += Vec2(0.5f, 0.5f);
     } else {  // If n_samples > 1, please send the ray through any random point within the pixel
@@ -38,8 +38,7 @@ Spectrum Pathtracer::trace_pixel(size_t x, size_t y) {
     // Tip: you may want to use log_ray for debugging. Given ray t, the following lines
     // of code will log .03% of all rays (see util/rand.h) for visualization in the app.
     // see student/debug.h for more detail.
-    if (RNG::coin_flip(0.000003f))
-        std::cout << std::to_string(out.dir.x) + ", " + std::to_string(out.dir.y) + "\n";
+    if (RNG::coin_flip(0.0005f))
         log_ray(out, 10.0f);
 
     return trace_ray(out);
@@ -83,6 +82,7 @@ Spectrum Pathtracer::trace_ray(const Ray& ray) {
     // queries before you implement real lighting in Tasks 4 and 5. (i.e, anything that gets hit is not black.)
     // You should change this to (0,0,0) and accumulate the direct and indirect lighting computed below.
     Spectrum radiance_out = Spectrum(0.25f);
+    // Spectrum radiance_out = Spectrum(0.0f);
     {
 
         // lambda function to sample a light. Called in loop below.
@@ -110,12 +110,17 @@ Spectrum Pathtracer::trace_ray(const Ray& ray) {
                 // TODO (PathTracer): Task 4
                 // Construct a shadow ray and compute whether the intersected surface is
                 // in shadow. Only accumulate light if not in shadow.
-
+                
                 // Tip: since you're creating the shadow ray at the intersection point, it may
                 // intersect the surface at time=0. Similarly, if the ray is allowed to have
                 // arbitrary length, it will hit the light it was cast at. Therefore, you should
                 // modify the time_bounds of your shadow ray to account for this. Using EPS_F is
                 // recommended.
+
+                // Ray shadow_ray(hit.position, sample.direction);
+                // shadow_ray.dist_bounds = Vec2(EPS_F, sample.distance - EPS_F);
+                // Trace shadow_hit = scene.hit(shadow_ray);
+                // if (shadow_hit.hit) continue;
 
                 // Note: that along with the typical cos_theta, pdf factors, we divide by samples.
                 // This is because we're doing another monte-carlo estimate of the lighting from
