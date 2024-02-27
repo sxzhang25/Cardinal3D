@@ -9,6 +9,9 @@ Vec3 reflect(Vec3 dir) {
 
     // TODO (PathTracer): Task 6
     // Return reflection of dir about the surface normal (0,1,0).
+    Vec3 out = dir;
+    out.z = -dir.z;
+    out.x = -dir.x;
     return Vec3();
 }
 
@@ -51,9 +54,9 @@ BSDF_Sample BSDF_Mirror::sample(Vec3 out_dir) const {
     // Implement mirror BSDF
 
     BSDF_Sample ret;
-    ret.attenuation = Spectrum(); // What is the ratio of reflected/incoming light?
-    ret.direction = Vec3();       // What direction should we sample incoming light from?
-    ret.pdf = 0.0f; // Was was the PDF of the sampled direction? (In this case, the PMF)
+    ret.attenuation = reflectance / std::abs(ret.direction.y); // What is the ratio of reflected/incoming light?
+    ret.direction = reflect(out_dir); // What direction should we sample incoming light from?
+    ret.pdf = 1.0f; // Was was the PDF of the sampled direction? (In this case, the PMF)
     return ret;
 }
 
@@ -63,7 +66,7 @@ Spectrum BSDF_Mirror::evaluate(Vec3 out_dir, Vec3 in_dir) const {
     // that we assume these are single exact directions in a
     // continuous space, just assume that we never hit them
     // _exactly_ and always return 0.
-    return {};
+    return Spectrum(0);
 }
 
 BSDF_Sample BSDF_Glass::sample(Vec3 out_dir) const {
