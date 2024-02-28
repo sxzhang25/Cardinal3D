@@ -45,6 +45,51 @@ private:
 
     // compute_bucket helper function
     size_t compute_bucket(BBox box, Vec3 center, int axis, int num_buckets);
+
+    Trace find_closest_hit(const Ray ray, size_t curIdx, Vec2& range) const {
+        Node curNode = nodes[curIdx];
+        Trace ret;
+        if(curNode.is_leaf()) {
+            for(size_t i = 0; i < curNode.size; i++) {
+                Trace hit = primitives[curNode.start + i].hit(ray);
+                ret = Trace::min(ret, hit);
+            }
+            return ret;
+        } else {
+            Node lchild = nodes[curNode.l];
+            Node rchild = nodes[curNode.r];
+            Vec2 rangeL, rangeR;
+            rangeL = range;
+            rangeR = range;
+            bool leftHit = lchild.bbox.hit(ray, rangeL);
+            bool rightHit = rchild.bbox.hit(ray, rangeR);
+            if(leftHit && rightHit) {
+                // check range
+                if(rangeL.x <= rangeR.x) {
+                    // left first
+                    Trace leftRet = find_closest_hit(ray, curNode.l, rangeL);
+                    if(leftRet.distance > rangeR.x || !leftRet.hit) {
+                        Trace rightRet = find_closest_hit(ray, curNode.r, rangeR);
+                        return Trace::min(leftRet, rightRet);
+                    }
+                    return leftRet;
+                } else {
+                    // right first
+                    Trace rightRet = find_closest_hit(ray, curNode.r, rangeR);
+                    if(rightRet.distance > rangeL.x || !rightRet.hit) {
+                        Trace leftRet = find_closest_hit(ray, curNode.l, rangeL);
+                        return Trace::min(leftRet, rightRet);
+                    }
+                    return rightRet;
+                }
+            } else if(leftHit) {
+                return find_closest_hit(ray, curNode.l, rangeL);
+            } else if(rightHit) {
+                return find_closest_hit(ray, curNode.r, rangeR);
+            }
+            return ret;
+        }
+    }
 };
 
 } // namespace PT
