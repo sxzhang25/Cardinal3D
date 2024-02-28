@@ -11,3 +11,6 @@ Contributions:
   Extra Credit:
     Sharon:
       - Task 2: Intersecting Spheres
+    
+  Notes:
+    - Didn't implement path tracer and the glass material, so the glass ball in the Cornell box scene is black
