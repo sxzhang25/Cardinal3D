@@ -1,6 +1,7 @@
 
 #include "../rays/tri_mesh.h"
 #include "debug.h"
+#include <iostream>
 
 namespace PT {
 
@@ -12,7 +13,7 @@ BBox Triangle::bbox() const {
     // Beware of flat/zero-volume boxes! You may need to
     // account for that here, or later on in BBox::intersect
 
-    BBox box(vertex_list[v0].position, vertex_list[v0].position);
+    BBox box;//(vertex_list[v0].position, vertex_list[v0].position);
     box.enclose(vertex_list[v0].position);
     box.enclose(vertex_list[v1].position);
     box.enclose(vertex_list[v2].position);
@@ -33,14 +34,15 @@ Trace Triangle::hit(const Ray& ray) const {
     // (void)v_0;
     // (void)v_1;
     // (void)v_2;
-    auto det = [] (Vec3 a, Vec3 b, Vec3 c) {
-        return dot(cross(a, b), c);
-    };
     
     // TODO (PathTracer): Task 2
     // Intersect this ray with a triangle defined by the above three points.
     // Intersection should yield a ray t-value, and a hit point (u,v) on the surface of the triangle
     // TODO: Check CCW positions.
+    auto det = [] (Vec3 a, Vec3 b, Vec3 c) {
+        return dot(cross(a, b), c);
+    };
+
     Vec3 e1 = v_1.position - v_0.position;
     Vec3 e2 = v_2.position - v_0.position;
     Vec3 s = ray.point - v_0.position;
@@ -48,21 +50,20 @@ Trace Triangle::hit(const Ray& ray) const {
     Trace ret;
     float disc = det(e1, d, e2);
     if (disc == 0) {
-        ret.origin = ray.point;
         return ret;
     }
 
     float u = -det(s, e2, d) / disc;
     float v = det(e1, d, s) / disc;
     float t = -det(s, e2, e1) / disc;
-    if (u >= 0 && u <= 1 && v >= 0 && v <= 1 && u + v <= 1 && t >= ray.dist_bounds[0] && t <= ray.dist_bounds[1]) {
+    if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f && u + v <= 1.0f && t >= ray.dist_bounds.x && t <= ray.dist_bounds.y) {
         // You'll need to fill in a "Trace" struct describing information about the hit (or lack of hit)
-
         ret.origin = ray.point;
-        ret.hit = true;       // was there an intersection?
+        ret.hit = true;     // was there an intersection?
         ret.distance = t;   // at what distance did the intersection occur?
         ret.position = ray.at(t); // where was the intersection?
-        ret.normal = v_0.normal * (1.0f - u - v) + v_1.normal * u + v_2.normal * v;   
+        ray.dist_bounds.y = t;
+        ret.normal = v_0.normal * (1.0f - u - v) + v_1.normal * u + v_2.normal * v;
                             // what was the surface normal at the intersection?
                             // (this should be interpolated between the three vertex normals)
     }
