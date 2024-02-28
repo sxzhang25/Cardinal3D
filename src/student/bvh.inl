@@ -20,6 +20,59 @@ size_t BVH<Primitive>::compute_bucket(BBox box, Vec3 center, int axis, int num_b
     return idx;
 }
 
+template<typename Primitive>
+Trace BVH<Primitive>::recursive_hit(const Ray ray, size_t curr_id, Vec2& times) const{
+    Node curr_node = nodes[curr_id];
+    Trace ret;
+
+    // if the node is a leaf, check and return the primitives
+    if(curr_node.is_leaf()) {
+        size_t start = curr_node.start;
+        size_t end = curr_node.start + curr_node.size;
+        for(size_t i = start; i < end; i++) {
+            ret = Trace::min(ret, primitives[i].hit(ray));
+        }
+        return ret;
+        
+    // if the node is not a leaf, check the children
+    } else {
+        Node left_node = nodes[curr_node.l];
+        Node right_node = nodes[curr_node.r];
+        Vec2 times_left = times;
+        Vec2 times_right = times;
+        bool hit_left = left_node.bbox.hit(ray, times_left);
+        bool hit_right = right_node.bbox.hit(ray, times_right);
+        
+        // if both children are hit, check the times
+        if(hit_left && hit_right) {
+            // if left is closer
+            if(times_left.x <= times_right.x) {
+                Trace ret_left = recursive_hit(ray, curr_node.l, times_left);
+                if(!ret_left.hit || ret_left.distance > times_right.x) {
+                    return Trace::min(ret_left, recursive_hit(ray, curr_node.r, times_right));
+                }
+                return ret_left;
+
+            // if right is closer
+            } else {
+                Trace ret_right = recursive_hit(ray, curr_node.r, times_right);
+                if(!ret_right.hit || ret_right.distance > times_left.x) {
+                    return Trace::min(recursive_hit(ray, curr_node.l, times_left), ret_right);
+                }
+                return ret_right;
+            }
+
+        // if only one child is hit, recurse the child
+        } else if(hit_left) {
+            return recursive_hit(ray, curr_node.l, times_left);
+        } else if(hit_right) {
+            return recursive_hit(ray, curr_node.r, times_right);
+        }
+
+        return ret;
+    }
+}
+
 // construct BVH hierarchy given a vector of prims
 template<typename Primitive>
 void BVH<Primitive>::build(std::vector<Primitive>&& prims, size_t max_leaf_size) {
@@ -197,58 +250,20 @@ Trace BVH<Primitive>::hit(const Ray& ray) const {
     // Again, remember you can use hit() on any Primitive value.
 
     // implementing the front-to-back traversal described in lecture
-    static size_t curr_node = 0;
-    Trace closest;
+    // TODO (PathTracer): Task 3
+    // Implement ray - BVH intersection test. A ray intersects
+    // with a BVH aggregate if and only if it intersects a primitive
+    // in the BVH that is not an aggregate.
 
-    if(nodes[curr_node].is_leaf()) {
-        size_t start = nodes[curr_node].start;
-        size_t size = nodes[curr_node].size;
-        for(size_t i = start; i < start + size; i++) {
-            closest = Trace::min(closest, primitives[i].hit(ray));
-        }
-
-    } else {
-        
-        // left and right child indices
-        size_t left_node = nodes[curr_node].l;
-        size_t right_node = nodes[curr_node].r;
-
-        // left and right child hit
-        Vec2 t1, t2, t_second;
-        primitives[left_node].bbox().hit(ray, t1);
-        primitives[right_node].bbox().hit(ray, t2);
-
-        // indices of the closest and second closest children
-        size_t first, second;
-        first = left_node;
-        second = right_node;
-        t_second = t2;
-
-        // swap if t1 is greater
-        if(t1.x >= t2.x) {
-            first = right_node;
-            second = left_node;
-            t_second = t1;
-        }
-
-        curr_node = first;
-        closest = hit(ray);
-
-        // if the second closest is closer than the closest, traverse to the second closest
-        Trace second_closest_hit;
-        if(t_second.x < closest.distance) {
-            curr_node = second;
-            second_closest_hit = hit(ray);
-        }
-
-        if(second_closest_hit.hit) {
-            closest = second_closest_hit;
-        }
+    // The starter code simply iterates through all the primitives.
+    // Again, remember you can use hit() on any Primitive value.
+    Trace ret;
+    Vec2 times(0.0f, FLT_MAX);
+    if(nodes[root_idx].bbox.hit(ray, times)) {
+        ret = recursive_hit(ray, root_idx, times);
     }
-
-    return closest;
+    return ret;
 }
-
 
 template<typename Primitive>
 BVH<Primitive>::BVH(std::vector<Primitive>&& prims, size_t max_leaf_size) {

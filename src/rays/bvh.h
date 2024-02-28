@@ -29,6 +29,9 @@ public:
     std::vector<Primitive> destructure();
     void clear();
 
+    // hit helper function
+    Trace recursive_hit(const Ray ray, size_t curr_id, Vec2& times) const;
+
 private:
     class Node {
         BBox bbox;
