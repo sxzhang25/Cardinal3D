@@ -1,16 +1,13 @@
 Members: Jiaju Ma (jiajuma), Sharon Zhang (szhang25)
 Contributions:
   Sharon: 
-    - EdgeFlip
-    - EdgeSplit
-    - Triangulation
-    - Linear Subdivision
-    - CatmullClark Subdivision
+    - Task 1
+    - Task 2
+    - Task 4
   Jiaju:
-    - EdgeCollapse
-    - FaceBevel
-    - Simplification
-    - Create 3D model
-    - Advanced: 
-         EraseVertex
-         EraseEdge
+    - Task 3
+    - Task 6
+
+  Extra Credit:
+    Sharon:
+      - Task 2: Intersecting Spheres
