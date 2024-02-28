@@ -12,7 +12,7 @@ Vec3 reflect(Vec3 dir) {
     Vec3 out = dir;
     out.z = -dir.z;
     out.x = -dir.x;
-    return Vec3();
+    return out;
 }
 
 Vec3 refract(Vec3 out_dir, float index_of_refraction, bool& was_internal) {
@@ -66,7 +66,7 @@ Spectrum BSDF_Mirror::evaluate(Vec3 out_dir, Vec3 in_dir) const {
     // that we assume these are single exact directions in a
     // continuous space, just assume that we never hit them
     // _exactly_ and always return 0.
-    return Spectrum(0);
+    return Spectrum(0.0f);
 }
 
 BSDF_Sample BSDF_Glass::sample(Vec3 out_dir) const {

@@ -66,6 +66,20 @@ Spectrum Pathtracer::trace_ray(const Ray& ray) {
     Mat4 world_to_object = object_to_world.T();
     Vec3 out_dir = world_to_object.rotate(ray.point - hit.position).unit();
 
+    // Mirror
+    if(bsdf.is_mirror()) {
+        Vec3 reflect_dir = reflect(out_dir);
+        reflect_dir = object_to_world.rotate(reflect_dir);
+        if(ray.depth == max_depth) {
+            return Spectrum(0.0f);
+
+        } else {
+            Ray recurse_ray = Ray(hit.position, reflect_dir);
+            recurse_ray.depth = ray.depth + 1;
+            return trace_ray(recurse_ray);
+        }
+    }
+
     // Debugging: if the normal colors flag is set, return the normal color
     if(debug_data.normal_colors) return Spectrum::direction(hit.normal);
 
@@ -116,7 +130,8 @@ Spectrum Pathtracer::trace_ray(const Ray& ray) {
                 // recommended.
 
                 Ray shadow_ray(hit.position, sample.direction);
-                shadow_ray.dist_bounds = Vec2(EPS_F, sample.distance - EPS_F);
+                shadow_ray.dist_bounds.x = EPS_F;
+                shadow_ray.dist_bounds.y = sample.distance - EPS_F;
                 Trace shadow_hit = scene.hit(shadow_ray);
                 if (shadow_hit.hit) continue;
 
