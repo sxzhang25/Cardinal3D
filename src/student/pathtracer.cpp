@@ -76,6 +76,8 @@ Spectrum Pathtracer::trace_ray(const Ray& ray) {
         } else {
             Ray recurse_ray = Ray(hit.position, reflect_dir);
             recurse_ray.depth = ray.depth + 1;
+            recurse_ray.throughput = ray.throughput;
+            recurse_ray.dist_bounds.x = EPS_F;
             return trace_ray(recurse_ray);
         }
     }
@@ -153,6 +155,9 @@ Spectrum Pathtracer::trace_ray(const Ray& ray) {
                 sample_light(env_light.value());
         }
     }
+
+    BSDF_Sample sample = bsdf.sample(out_dir);
+    radiance_out += sample.emissive;
 
     // TODO (PathTracer): Task 5
     // Compute an indirect lighting estimate using path tracing with Monte Carlo.
