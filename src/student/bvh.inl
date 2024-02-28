@@ -30,8 +30,7 @@ Trace BVH<Primitive>::recursive_hit(const Ray ray, size_t curr_id, Vec2& times) 
         size_t start = curr_node.start;
         size_t end = curr_node.start + curr_node.size;
         for(size_t i = start; i < end; i++) {
-            Trace hit = primitives[i].hit(ray);
-            ret = Trace::min(ret, hit);
+            ret = Trace::min(ret, primitives[i].hit(ray));
         }
         return ret;
         
@@ -43,32 +42,29 @@ Trace BVH<Primitive>::recursive_hit(const Ray ray, size_t curr_id, Vec2& times) 
         Vec2 times_right = times;
         bool hit_left = left_node.bbox.hit(ray, times_left);
         bool hit_right = right_node.bbox.hit(ray, times_right);
-
+        
         // if both children are hit, check the times
         if(hit_left && hit_right) {
-            // check times
+            // if left is closer
             if(times_left.x <= times_right.x) {
-                // left first
-                Trace leftRet = recursive_hit(ray, curr_node.l, times_left);
-                if(leftRet.distance > times_right.x || !leftRet.hit) {
-                    Trace rightRet = recursive_hit(ray, curr_node.r, times_right);
-                    return Trace::min(leftRet, rightRet);
+                Trace ret_left = recursive_hit(ray, curr_node.l, times_left);
+                if(!ret_left.hit || ret_left.distance > times_right.x) {
+                    return Trace::min(ret_left, recursive_hit(ray, curr_node.r, times_right));
                 }
-                return leftRet;
+                return ret_left;
 
+            // if right is closer
             } else {
-                // right first
-                Trace rightRet = recursive_hit(ray, curr_node.r, times_right);
-                if(rightRet.distance > times_left.x || !rightRet.hit) {
-                    Trace leftRet = recursive_hit(ray, curr_node.l, times_left);
-                    return Trace::min(leftRet, rightRet);
+                Trace ret_right = recursive_hit(ray, curr_node.r, times_right);
+                if(!ret_right.hit || ret_right.distance > times_left.x) {
+                    return Trace::min(recursive_hit(ray, curr_node.l, times_left), ret_right);
                 }
-                return rightRet;
+                return ret_right;
             }
 
+        // if only one child is hit, recurse the child
         } else if(hit_left) {
             return recursive_hit(ray, curr_node.l, times_left);
-            
         } else if(hit_right) {
             return recursive_hit(ray, curr_node.r, times_right);
         }
@@ -262,10 +258,9 @@ Trace BVH<Primitive>::hit(const Ray& ray) const {
     // The starter code simply iterates through all the primitives.
     // Again, remember you can use hit() on any Primitive value.
     Trace ret;
-    Vec2 range(0.0f, FLT_MAX);
-    if(nodes[root_idx].bbox.hit(ray, range)) {
-        // iterate until leaf
-        ret = recursive_hit(ray, root_idx, range);
+    Vec2 times(0.0f, FLT_MAX);
+    if(nodes[root_idx].bbox.hit(ray, times)) {
+        ret = recursive_hit(ray, root_idx, times);
     }
     return ret;
 }
