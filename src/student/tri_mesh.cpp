@@ -13,8 +13,8 @@ BBox Triangle::bbox() const {
     // Beware of flat/zero-volume boxes! You may need to
     // account for that here, or later on in BBox::intersect
 
-    BBox box;//(vertex_list[v0].position, vertex_list[v0].position);
-    box.enclose(vertex_list[v0].position);
+    BBox box(vertex_list[v0].position, vertex_list[v0].position);
+    // box.enclose(vertex_list[v0].position);
     box.enclose(vertex_list[v1].position);
     box.enclose(vertex_list[v2].position);
 
